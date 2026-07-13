@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Forensics Analyzer</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171b21; --panel2:#1e232b; --border:#2a313c;
+    --text:#e6e9ef; --muted:#8a94a3; --accent:#4f9dff;
+    --ok:#2ecc71; --warn:#f5a623; --bad:#e5484d; --neutral:#8a94a3;
+  }
+  :root[data-theme="light"]{
+    --bg:#f3f5f7; --panel:#ffffff; --panel2:#eef1f4; --border:#dbe0e6;
+    --text:#181b20; --muted:#5b6472; --accent:#2563eb;
+    --ok:#1a9850; --warn:#a9660a; --bad:#c8323a; --neutral:#5b6472;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5}
+  header{padding:20px 24px;border-bottom:1px solid var(--border);background:var(--panel)}
+  header h1{margin:0;font-size:18px}
+  header p{margin:4px 0 0;color:var(--muted);font-size:13px}
+  .container{max-width:1100px;margin:0 auto;padding:20px 24px 60px}
+  .drop{border:2px dashed var(--border);border-radius:10px;padding:36px;text-align:center;background:var(--panel);cursor:pointer;transition:border-color .15s}
+  .drop.drag{border-color:var(--accent)}
+  .drop input{display:none}
+  .drop .hint{color:var(--muted);font-size:12px;margin-top:6px}
+  .status{margin-top:10px;font-size:13px;color:var(--muted)}
+  .status.err{color:var(--bad)}
+  .tabs{display:flex;gap:4px;margin:22px 0 0;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .tab{padding:9px 14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;font-size:13px;user-select:none}
+  .tab.active{color:var(--text);border-color:var(--accent)}
+  .panel{display:none;padding:18px 0}
+  .panel.active{display:block}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px}
+  .card h3{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  table{width:100%;border-collapse:collapse}
+  table.headers td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12.5px}
+  table.headers td:first-child{color:var(--accent);white-space:nowrap;font-weight:600;width:170px}
+  table.headers td:last-child{word-break:break-all;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#c9d1d9}
+  .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:700;letter-spacing:.02em}
+  .badge.pass{background:rgba(46,204,113,.15);color:var(--ok)}
+  .badge.fail{background:rgba(229,72,77,.15);color:var(--bad)}
+  .badge.warn{background:rgba(245,166,35,.15);color:var(--warn)}
+  .badge.neutral{background:rgba(138,148,163,.15);color:var(--neutral)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+  .authbox{border:1px solid var(--border);border-radius:8px;padding:12px}
+  .authbox h4{margin:0 0 8px;font-size:12.5px;color:var(--muted)}
+  .kv{display:flex;justify-content:space-between;padding:3px 0;font-size:12.5px;border-bottom:1px dashed var(--border)}
+  .kv span:first-child{color:var(--muted)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  .note{font-size:12px;color:var(--muted);margin-top:8px}
+  .warnbanner{background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.4);color:var(--warn);padding:10px 12px;border-radius:8px;font-size:12.5px;margin-bottom:12px}
+  .badbanner{background:rgba(229,72,77,.1);border:1px solid rgba(229,72,77,.4);color:var(--bad);padding:10px 12px;border-radius:8px;font-size:12.5px;margin-bottom:12px}
+  .attachlist{display:flex;flex-direction:column;gap:8px}
+  .attach{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px}
+  .attach .name{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12.5px}
+  .attach .meta{color:var(--muted);font-size:11.5px;margin-top:2px}
+  .urltable td{padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px}
+  .urltable .type{color:var(--muted);width:70px}
+  .btn{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12.5px}
+  .btn:hover{border-color:var(--accent)}
+  .btn.small{padding:3px 9px;font-size:11.5px}
+  .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+  .bodytabs{display:flex;gap:6px;margin-bottom:10px}
+  iframe.bodyframe{width:100%;height:420px;border:1px solid var(--border);border-radius:8px;background:#fff}
+  pre.textbody{white-space:pre-wrap;word-break:break-word;background:var(--panel2);padding:12px;border-radius:8px;max-height:420px;overflow:auto;font-size:12.5px}
+  .spinner{display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .empty{color:var(--muted);font-size:13px;padding:20px;text-align:center}
+  a{color:var(--accent)}
+  .taglist{font-size:11.5px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .taglist span{background:var(--panel2);padding:2px 7px;border-radius:5px}
+  details.howbox{margin:6px 0 10px;font-size:12px;color:var(--muted)}
+  details.howbox summary{cursor:pointer;color:var(--accent);list-style:none;user-select:none}
+  details.howbox summary::-webkit-details-marker{display:none}
+  details.howbox summary::before{content:'ⓘ ';}
+  details.howbox[open] summary{margin-bottom:6px}
+  details.howbox p{margin:4px 0}
+  .headertoolbar{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .headertoolbar .btn:disabled{opacity:.4;cursor:not-allowed}
+  .hoptable td{vertical-align:top}
+  .input{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:12.5px}
+  label.fieldlabel{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+  @media print{
+    #drop, #status, .tabs, .headertoolbar, header p, .btn, a.btn, details.howbox { display:none !important; }
+    body{background:#fff;color:#000}
+    .card{border-color:#ccc;break-inside:avoid}
+    .panel{display:block !important;padding:6px 0}
+    iframe.bodyframe{border-color:#ccc}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Email Forensics Analyzer</h1>
+  <p>Parses .eml / .msg files locally in your browser &mdash; extracts headers, body, URLs/Domains/IPs, checks attachment magic numbers, and live-verifies SPF, DKIM and DMARC via public DNS.</p>
+  <div class="headertoolbar">
+    <button class="btn small" id="themeBtn">☀️ Light mode</button>
+    <button class="btn small" id="exportHtmlBtn" disabled>Export HTML</button>
+    <button class="btn small" id="exportPdfBtn" disabled>Export PDF</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <div id="drop" class="drop">
+    <div>Drop an <b>.eml</b> or <b>.msg</b> file here, or click to choose</div>
+    <div class="hint">Nothing is uploaded anywhere &mdash; all parsing happens on this page, in memory.</div>
+    <input type="file" id="fileInput" accept=".eml,.msg">
+  </div>
+  <div id="status" class="status"></div>
+
+  <div id="app" style="display:none">
+    <div class="tabs">
+      <div class="tab active" data-tab="overview">Overview</div>
+      <div class="tab" data-tab="headers">Headers</div>
+      <div class="tab" data-tab="body">Body</div>
+      <div class="tab" data-tab="urls">URLs, Domains &amp; IPs</div>
+      <div class="tab" data-tab="attachments">Attachments</div>
+      <div class="tab" data-tab="auth">SPF / DKIM / DMARC</div>
+      <div class="tab" data-tab="whois">WHOIS</div>
+      <div class="tab" data-tab="ioc">IOC Lookup</div>
+    </div>
+
+    <div class="panel active" id="panel-overview"></div>
+    <div class="panel" id="panel-headers"></div>
+    <div class="panel" id="panel-body"></div>
+    <div class="panel" id="panel-urls"></div>
+    <div class="panel" id="panel-attachments"></div>
+    <div class="panel" id="panel-auth"></div>
+    <div class="panel" id="panel-whois"></div>
+    <div class="panel" id="panel-ioc"></div>
+  </div>
+</div>
+
+<script type="module">
+import PostalMime from "https://cdn.jsdelivr.net/npm/postal-mime@2.7.5/src/postal-mime.js";
+import MsgReader from "https://esm.sh/@kenjiuno/msgreader@1.28.0";
+
+/* =========================================================================
+   SECTION 1 — byte-transparent string helpers
+   All DKIM/SPF-relevant text is handled as a "binary string" (1 char code
+   == 1 byte, via latin1) so hashing/canonicalization never gets mangled by
+   UTF-8/UTF-16 re-encoding.
+   ========================================================================= */
+function bytesToBinaryString(bytes){
+  let out = '';
+  const CHUNK = 0x8000;
+  for (let i=0;i<bytes.length;i+=CHUNK) out += String.fromCharCode.apply(null, bytes.subarray(i, i+CHUNK));
+  return out;
+}
+function binaryStringToBytes(str){
+  const b = new Uint8Array(str.length);
+  for (let i=0;i<str.length;i++) b[i] = str.charCodeAt(i) & 0xff;
+  return b;
+}
+function textFromBinary(str){
+  // best-effort UTF-8 decode of a binary string, for human-readable display
+  try { return new TextDecoder('utf-8', {fatal:false}).decode(binaryStringToBytes(str)); }
+  catch(e){ return str; }
+}
+async function sha256Hex(bytes){
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function toUtcIso(dateStr){
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+const MIME_BY_EXT = {
+  pdf:'application/pdf', doc:'application/msword', docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls:'application/vnd.ms-excel', xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt:'application/vnd.ms-powerpoint', pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  zip:'application/zip', rar:'application/vnd.rar', '7z':'application/x-7z-compressed', gz:'application/gzip',
+  png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', bmp:'image/bmp', svg:'image/svg+xml',
+  txt:'text/plain', csv:'text/csv', html:'text/html', htm:'text/html', xml:'application/xml', json:'application/json',
+  exe:'application/x-msdownload', dll:'application/x-msdownload', rtf:'application/rtf', mp3:'audio/mpeg',
+  mp4:'video/mp4', wav:'audio/wav', eml:'message/rfc822', msg:'application/vnd.ms-outlook',
+};
+function guessMimeFromExt(ext){ return MIME_BY_EXT[(ext||'').toLowerCase()] || 'application/octet-stream'; }
+function stripAngles(s){ return s ? s.replace(/^</,'').replace(/>$/,'') : s; }
+
+/* =========================================================================
+   SECTION 2 — RFC822 header/body parsing + DKIM canonicalization
+   Ported line-for-line from the reference "dkimpy" Python library so the
+   byte-level behaviour matches a widely-used, tested implementation.
+   ========================================================================= */
+function rfc822Parse(message){
+  const headers = [];
+  const lines = message.split(/\r?\n/);
+  let i = 0;
+  while (i < lines.length){
+    if (lines[i].length === 0){ i += 1; break; }
+    if (lines[i][0] === '\t' || lines[i][0] === ' '){
+      headers[headers.length-1][1] += lines[i] + '\r\n';
+    } else {
+      const m = /^([\x21-\x7e]+?):/.exec(lines[i]);
+      if (m){ headers.push([m[1], lines[i].slice(m[0].length) + '\r\n']); }
+      else if (lines[i].startsWith('From ')){ /* mbox line, ignore */ }
+      else { headers.push(['', lines[i] + '\r\n']); }
+    }
+    i += 1;
+  }
+  const body = lines.slice(i).join('\r\n');
+  return { headers, body };
+}
+function stripTrailingWhitespace(c){ return c.replace(/[\t ]+\r\n/g, '\r\n'); }
+function compressWhitespace(c){ return c.replace(/[\t ]+/g, ' '); }
+function stripTrailingLines(content){
+  let end = null;
+  const endsWithCRLF = (s, upto) => (upto===null? s : s.slice(0, upto<0? s.length+upto : upto)).endsWith('\r\n');
+  while (endsWithCRLF(content, end)){ end = (end===null)? -2 : end-2; }
+  if (end === null) return content + '\r\n';
+  end += 2;
+  if (end === 0) return content;
+  return content.slice(0, end<0? content.length+end : end);
+}
+function unfoldHeaderValue(c){ return c.replace(/\r?\n/g, ''); }
+function correctEmptyBody(c){ return c === '\r\n' ? '' : c; }
+const Simple = {
+  canonicalizeHeaders(h){ return h.map(([n,v])=>[n,v]); },
+  canonicalizeBody(b){ return stripTrailingLines(b); }
+};
+const Relaxed = {
+  canonicalizeHeaders(h){ return h.map(([n,v])=>[n.toLowerCase().replace(/\s+$/,''), compressWhitespace(unfoldHeaderValue(v)).trim()+'\r\n']); },
+  canonicalizeBody(b){ return correctEmptyBody(stripTrailingLines(compressWhitespace(stripTrailingWhitespace(b)))); }
+};
+function getCanon(name){ return name === 'simple' ? Simple : Relaxed; }
+function selectHeaders(headers, includeHeaders){
+  const signHeaders = []; const lastindex = {};
+  for (const h of includeHeaders){
+    let i = Object.prototype.hasOwnProperty.call(lastindex,h) ? lastindex[h] : headers.length;
+    while (i > 0){ i -= 1; if (h === headers[i][0].toLowerCase()){ signHeaders.push(headers[i]); break; } }
+    lastindex[h] = i;
+  }
+  return signHeaders;
+}
+function stripBTag(sigValue){ return sigValue.replace(/([;\s]b\s*=)(?:[^;]*)/, (full,p1)=>p1); }
+function hashHeadersText(canonPolicy, headers, includeHeaders, sigHeaderNameValue){
+  const signHeaders = selectHeaders(headers, includeHeaders);
+  const stripped = stripBTag(sigHeaderNameValue[1]);
+  const cheaders = canonPolicy.canonicalizeHeaders([[sigHeaderNameValue[0], stripped]]);
+  let out = '';
+  for (const [n,v] of signHeaders) out += n + ':' + v;
+  for (const [n,v] of cheaders) out += n + ':' + v.replace(/\s+$/,'');
+  return out;
+}
+function parseTagList(value){
+  const tags = {};
+  for (const part of value.split(';')){
+    const m = /^\s*([a-zA-Z0-9_]+)\s*=\s*([\s\S]*)$/.exec(part);
+    if (m) tags[m[1]] = m[2].trim();
+  }
+  return tags;
+}
+function unfoldForDisplay(v){ return v.replace(/\r\n[ \t]+/g,' ').replace(/\r?\n$/,'').trim(); }
+
+/* =========================================================================
+   SECTION 3 — DNS-over-HTTPS (free, no API key) with fallback resolver
+   ========================================================================= */
+async function dohQuery(name, type){
+  const typeNum = {A:1, AAAA:28, TXT:16}[type] ?? type;
+  try{
+    const r = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${typeNum}`, {mode:'cors'});
+    if (!r.ok) throw new Error('google doh http '+r.status);
+    return await r.json();
+  }catch(e){
+    const r2 = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${typeNum}`, {mode:'cors', headers:{accept:'application/dns-json'}});
+    if (!r2.ok) throw new Error('cloudflare doh http '+r2.status);
+    return await r2.json();
+  }
+}
+function parseTxtData(data){
+  // Answer.data for TXT records comes back as one or more quoted segments; join them.
+  const m = data.match(/"((?:[^"\\]|\\.)*)"/g);
+  if (!m) return data.replace(/^"|"$/g,'');
+  return m.map(s=>s.slice(1,-1).replace(/\\"/g,'"')).join('');
+}
+async function getTxtRecords(domain){
+  const json = await dohQuery(domain, 'TXT');
+  if (json.Status === 3) return {status:'NXDOMAIN', records:[]};
+  if (json.Status !== 0) return {status:'ERROR('+json.Status+')', records:[]};
+  const records = (json.Answer||[]).filter(a=>a.type===16).map(a=>parseTxtData(a.data));
+  return {status:'OK', records};
+}
+async function getAddresses(domain, type){
+  const json = await dohQuery(domain, type);
+  if (json.Status !== 0) return [];
+  return (json.Answer||[]).filter(a=>a.type===({A:1,AAAA:28}[type])).map(a=>a.data);
+}
+
+/* =========================================================================
+   SECTION 4 — IP helpers (CIDR match, private-range detection)
+   ========================================================================= */
+function ipv4ToInt(ip){
+  const p = ip.split('.').map(Number);
+  if (p.length!==4 || p.some(n=>isNaN(n)||n<0||n>255)) return null;
+  return ((p[0]<<24)>>>0) + (p[1]<<16) + (p[2]<<8) + p[3];
+}
+function isIPv4(s){ return /^(\d{1,3}\.){3}\d{1,3}$/.test(s) && ipv4ToInt(s)!==null; }
+function cidrMatchV4(ip, cidr){
+  let [net, bits] = cidr.split('/');
+  bits = bits===undefined ? 32 : parseInt(bits,10);
+  const ipInt = ipv4ToInt(ip), netInt = ipv4ToInt(net);
+  if (ipInt===null||netInt===null) return false;
+  if (bits===0) return true;
+  const mask = (0xFFFFFFFF << (32-bits)) >>> 0;
+  return (ipInt & mask) === (netInt & mask);
+}
+function expandIPv6(ip){
+  ip = ip.split('%')[0]; // strip zone id
+  let [head, tail] = ip.includes('::') ? ip.split('::') : [ip, undefined];
+  let headParts = head ? head.split(':').filter(x=>x!=='') : [];
+  let tailParts = tail!==undefined ? tail.split(':').filter(x=>x!=='') : [];
+  if (tail !== undefined){
+    const missing = 8 - headParts.length - tailParts.length;
+    headParts = headParts.concat(Array(Math.max(missing,0)).fill('0'));
+  }
+  const all = headParts.concat(tailParts);
+  while (all.length < 8) all.push('0');
+  return all.map(h=>parseInt(h||'0',16));
+}
+function isIPv6(s){ return s.includes(':'); }
+function ipv6ToBigInt(ip){
+  const parts = expandIPv6(ip);
+  let val = 0n;
+  for (const p of parts) val = (val << 16n) | BigInt(p);
+  return val;
+}
+function cidrMatchV6(ip, cidr){
+  let [net, bits] = cidr.split('/');
+  bits = bits===undefined ? 128 : parseInt(bits,10);
+  try{
+    const ipInt = ipv6ToBigInt(ip), netInt = ipv6ToBigInt(net);
+    const mask = bits===0 ? 0n : (((1n<<128n)-1n) << BigInt(128-bits)) & ((1n<<128n)-1n);
+    return (ipInt & mask) === (netInt & mask);
+  }catch(e){ return false; }
+}
+function isPrivateOrReservedIp(ip){
+  if (isIPv4(ip)){
+    return ['10.0.0.0/8','172.16.0.0/12','192.168.0.0/16','127.0.0.0/8','169.254.0.0/16','0.0.0.0/8','100.64.0.0/10','198.18.0.0/15'].some(c=>cidrMatchV4(ip,c));
+  }
+  if (isIPv6(ip)){
+    return ['::1/128','fe80::/10','fc00::/7','::/128'].some(c=>{ try{return cidrMatchV6(ip,c);}catch(e){return false;} });
+  }
+  return true;
+}
+
+/* =========================================================================
+   SECTION 5 — Attachment magic-number database
+   ========================================================================= */
+const SIGNATURES = [
+  {name:'PDF document', ext:['pdf'], match:b=>matchHex(b,0,'25504446')},
+  {name:'Windows executable (EXE/DLL/SCR)', ext:['exe','dll','scr','com'], match:b=>matchHex(b,0,'4D5A'), danger:true},
+  {name:'ELF executable (Linux)', ext:['elf','bin','out'], match:b=>matchHex(b,0,'7F454C46'), danger:true},
+  {name:'ZIP / Office Open XML (docx/xlsx/pptx/zip/jar)', ext:['zip','docx','xlsx','pptx','jar','apk','ipa'], match:b=>matchHex(b,0,'504B0304')||matchHex(b,0,'504B0506')||matchHex(b,0,'504B0708')},
+  {name:'OLE Compound File (legacy Office .doc/.xls/.ppt, or MSI)', ext:['doc','xls','ppt','msi','msg'], match:b=>matchHex(b,0,'D0CF11E0A1B11AE1')},
+  {name:'RTF document', ext:['rtf'], match:b=>matchHex(b,0,'7B5C72746631')},
+  {name:'RAR archive', ext:['rar'], match:b=>matchHex(b,0,'526172211A07')},
+  {name:'7-Zip archive', ext:['7z'], match:b=>matchHex(b,0,'377ABCAF271C')},
+  {name:'GZIP archive', ext:['gz','tgz'], match:b=>matchHex(b,0,'1F8B')},
+  {name:'PNG image', ext:['png'], match:b=>matchHex(b,0,'89504E470D0A1A0A')},
+  {name:'JPEG image', ext:['jpg','jpeg'], match:b=>matchHex(b,0,'FFD8FF')},
+  {name:'GIF image', ext:['gif'], match:b=>matchHex(b,0,'474946383761')||matchHex(b,0,'474946383961')},
+  {name:'BMP image', ext:['bmp'], match:b=>matchHex(b,0,'424D')},
+  {name:'WAV audio', ext:['wav'], match:b=>matchHex(b,0,'52494646') && matchHex(b,8,'57415645')},
+  {name:'MP3 audio', ext:['mp3'], match:b=>matchHex(b,0,'494433')||matchHex(b,0,'FFFB')||matchHex(b,0,'FFF3')},
+  {name:'MP4/MOV video', ext:['mp4','mov','m4a','m4v'], match:b=>matchAscii(b,4,'ftyp')},
+  {name:'Windows Shortcut (LNK)', ext:['lnk'], match:b=>matchHex(b,0,'4C0000000114020000000000C000000000000046'), danger:true},
+  {name:'ISO disk image', ext:['iso'], match:b=>matchAscii(b,0x8001,'CD001')},
+  {name:'HTML document', ext:['html','htm','hta'], match:b=>looksLikeHtml(b)},
+  {name:'XML document', ext:['xml'], match:b=>matchAscii(b,0,'<?xml')},
+];
+function matchHex(bytes, offset, hex){
+  const target = hex.match(/.{2}/g).map(h=>parseInt(h,16));
+  if (bytes.length < offset+target.length) return false;
+  for (let i=0;i<target.length;i++) if (bytes[offset+i]!==target[i]) return false;
+  return true;
+}
+function matchAscii(bytes, offset, ascii){
+  if (bytes.length < offset+ascii.length) return false;
+  for (let i=0;i<ascii.length;i++) if (bytes[offset+i]!==ascii.charCodeAt(i)) return false;
+  return true;
+}
+function looksLikeHtml(bytes){
+  const head = new TextDecoder('ascii',{fatal:false}).decode(bytes.slice(0,512)).trim().toLowerCase();
+  return head.startsWith('<!doctype html') || head.startsWith('<html') || /^<\?xml[\s\S]{0,200}<html/.test(head);
+}
+function looksLikeText(bytes){
+  const sample = bytes.slice(0, Math.min(bytes.length,1024));
+  let printable = 0;
+  for (const b of sample){ if (b===9||b===10||b===13||(b>=32&&b<127)||b>=128) printable++; }
+  return sample.length>0 && printable/sample.length > 0.95;
+}
+const SCRIPT_TEXT_EXT = ['txt','csv','log','ini','json','js','vbs','ps1','bat','cmd','sh','eml','yaml','yml','md','svg','css'];
+function detectFileType(bytes){
+  for (const sig of SIGNATURES){ if (sig.match(bytes)) return sig; }
+  if (looksLikeText(bytes)) return {name:'Plain text / script data', ext:SCRIPT_TEXT_EXT, match:()=>true, danger:false};
+  return {name:'Unknown binary data', ext:[], match:()=>true, danger:false};
+}
+function checkExtensionMatch(filename, bytes){
+  const ext = (filename.split('.').pop()||'').toLowerCase();
+  const detected = detectFileType(bytes);
+  const expected = detected.ext.includes(ext);
+  return {ext, detected: detected.name, dangerType: !!detected.danger, mismatch: !expected};
+}
+
+/* =========================================================================
+   SECTION 6 — URL / IP extraction
+   ========================================================================= */
+const URL_RE = /\bhttps?:\/\/[^\s"'<>()\[\]]+/gi;
+const IPV4_RE = /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g;
+const IPV6_RE = /\b(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}\b/g;
+function extractUrlsAndIps(text, html){
+  const urls = new Set(); const ips = new Set();
+  const addFromText = (t)=>{
+    if (!t) return;
+    (t.match(URL_RE)||[]).forEach(u=>urls.add(u.replace(/[.,;:!?]+$/,'')));
+    (t.match(IPV4_RE)||[]).forEach(ip=>ips.add(ip));
+    (t.match(IPV6_RE)||[]).forEach(ip=>{ if(ip.includes(':') && ip.split(':').length>2) ips.add(ip); });
+  };
+  addFromText(text);
+  addFromText(html);
+  if (html){
+    try{
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      doc.querySelectorAll('[href]').forEach(el=>{ const h=el.getAttribute('href'); if(h && /^https?:\/\//i.test(h)) urls.add(h); });
+      doc.querySelectorAll('[src]').forEach(el=>{ const s=el.getAttribute('src'); if(s && /^https?:\/\//i.test(s)) urls.add(s); });
+    }catch(e){}
+  }
+  return { urls:[...urls], ips:[...ips].filter(ip=>isIPv4(ip)||isIPv6(ip)) };
+}
+function defang(s){ return s.replace(/^https?/i, m=>m.replace('t','tt').replace('http','hxxp')).replace(/\./g,'[.]'); }
+
+// Domain extraction: from URL hostnames, from email addresses in the body,
+// and from bare domain-like mentions in text. A small common-TLD allowlist
+// keeps false positives (version numbers, "e.g.", "St. Louis"...) low.
+const COMMON_TLDS = new Set(['com','net','org','info','biz','io','co','uk','de','fr','es','it','ru','cn','jp','kr','in','au','ca','us',
+  'gov','edu','mil','int','nl','se','no','fi','dk','pl','br','mx','ar','za','ch','at','be','pt','gr','tr','ua','xyz','top','club',
+  'online','site','shop','live','click','link','app','dev','me','tv','cc','ws','name','mobi','asia','tech','store','icu','cyou','pro',
+  'vip','work','life','world','email','cloud','ai','id','sg','hk','tw','th','vn','ph','my','pk','sa','ae','il','eu','ly','gl','st','so','to','gg','nz','ie']);
+function extractDomains(text, html, urls){
+  const domains = new Set();
+  const addDomain = (host)=>{
+    if (!host) return;
+    host = host.toLowerCase().replace(/\.$/,'').replace(/^www\./,'');
+    if (isIPv4(host) || isIPv6(host)) return;
+    const labels = host.split('.');
+    if (labels.length < 2) return;
+    if (!COMMON_TLDS.has(labels[labels.length-1])) return;
+    domains.add(host);
+  };
+  urls.forEach(u=>{
+    try{ addDomain(new URL(u).hostname); }
+    catch(e){ const m = /^https?:\/\/([^\/:?#]+)/i.exec(u); if (m) addDomain(m[1]); }
+  });
+  const combined = (text||'') + '\n' + (html||'');
+  (combined.match(/[\w.+-]+@([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)/g) || []).forEach(e=>addDomain(e.split('@')[1]));
+  (combined.match(/\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,24}\b/g) || []).forEach(addDomain);
+  return [...domains].sort();
+}
+
+/* =========================================================================
+   SECTION 7 — SPF evaluation (RFC 7208, simplified: no ptr/exists macros)
+   ========================================================================= */
+async function spfCheck(domain, ip, depth=0, lookups={n:0}){
+  if (depth > 10 || lookups.n > 10) return {result:'permerror', reason:'too many DNS lookups (RFC 7208 limit)'};
+  lookups.n++;
+  let txt;
+  try{ txt = await getTxtRecords(domain); } catch(e){ return {result:'temperror', reason:'DNS lookup failed: '+e.message}; }
+  if (txt.status==='NXDOMAIN') return {result:'none', reason:'domain does not exist'};
+  const spfRecords = txt.records.filter(r=>/^v=spf1(\s|$)/i.test(r));
+  if (spfRecords.length===0) return {result:'none', reason:'no SPF record published for '+domain};
+  if (spfRecords.length>1) return {result:'permerror', reason:'multiple SPF records published (invalid)'};
+  const record = spfRecords[0];
+  const tokens = record.trim().split(/\s+/).slice(1);
+  const evaluated = [];
+  for (const token of tokens){
+    let qualifier = '+', t = token;
+    if ('+-~?'.includes(t[0])){ qualifier = t[0]; t = t.slice(1); }
+    const [mech, argRaw] = t.includes(':') ? [t.split(':')[0], t.split(':').slice(1).join(':')] : (t.includes('=') ? [t.split('=')[0], t.split('=').slice(1).join('=')] : [t, undefined]);
+    const mechLower = mech.toLowerCase();
+    let hit = false, note='';
+    try{
+      if (mechLower==='all'){ hit = true; note='catch-all'; }
+      else if (mechLower==='ip4' && argRaw){ hit = isIPv4(ip) && cidrMatchV4(ip, argRaw); }
+      else if (mechLower==='ip6' && argRaw){ hit = isIPv6(ip) && cidrMatchV6(ip, argRaw); }
+      else if (mechLower==='include' && argRaw){
+        const sub = await spfCheck(argRaw, ip, depth+1, lookups);
+        hit = sub.result === 'pass'; note = 'include:'+argRaw+' -> '+sub.result;
+        if (sub.result==='permerror'||sub.result==='temperror'){ evaluated.push({token, note}); continue; }
+      }
+      else if (mechLower==='a'){
+        const d = argRaw || domain;
+        const addrs = isIPv6(ip) ? await getAddresses(d,'AAAA') : await getAddresses(d,'A');
+        lookups.n++;
+        hit = addrs.some(a=> isIPv6(ip) ? cidrMatchV6(ip, a) : cidrMatchV4(ip, a));
+      }
+      else if (mechLower==='mx'){
+        const d = argRaw || domain;
+        const mxJson = await dohQuery(d,'MX'); lookups.n++;
+        const hosts = (mxJson.Answer||[]).filter(a=>a.type===15).map(a=>a.data.split(' ').pop().replace(/\.$/,''));
+        for (const h of hosts){
+          const addrs = isIPv6(ip) ? await getAddresses(h,'AAAA') : await getAddresses(h,'A');
+          if (addrs.some(a=> isIPv6(ip)? cidrMatchV6(ip,a) : cidrMatchV4(ip,a))){ hit = true; break; }
+        }
+      }
+      else if (mechLower==='ptr'){ note='ptr mechanism present but not evaluated (deprecated, expensive)'; }
+      else if (mechLower==='exists'){ note='exists mechanism not evaluated (macro expansion unsupported)'; }
+      else if (mechLower==='redirect'){ /* handled after loop */ }
+    }catch(e){ note = 'lookup error: '+e.message; }
+    evaluated.push({token, note});
+    if (hit){
+      const map = {'+':'pass','-':'fail','~':'softfail','?':'neutral'};
+      return {result:map[qualifier], reason:'matched "'+token+'"', record, evaluated};
+    }
+  }
+  const redirect = tokens.find(t=>t.toLowerCase().startsWith('redirect='));
+  if (redirect){
+    const sub = await spfCheck(redirect.split('=')[1], ip, depth+1, lookups);
+    return {...sub, record, reason:'via redirect='+redirect.split('=')[1]};
+  }
+  return {result:'neutral', reason:'no mechanism matched, no default (all)', record, evaluated};
+}
+
+/* =========================================================================
+   SECTION 8 — DKIM verification (uses Web Crypto SubtleCrypto)
+   ========================================================================= */
+function derFromBase64Spki(b64){
+  const bin = atob(b64.replace(/\s+/g,''));
+  const bytes = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return bytes;
+}
+async function dkimVerifyOne(headers, rawBinaryString, sigHeaderEntry, isMsg){
+  const tags = parseTagList(sigHeaderEntry[1]);
+  const out = {selector:tags.s, domain:tags.d, algorithm:tags.a, canon:tags.c||'simple/simple', signedHeaders:tags.h, result:'neutral', detail:''};
+  if (!tags.d || !tags.s || !tags.b || !tags.bh || !tags.h){
+    out.result = 'permerror'; out.detail = 'DKIM-Signature header missing required tags'; return out;
+  }
+  const [hCanonName, bCanonName] = (tags.c||'simple/simple').split('/');
+  const headerCanon = getCanon(hCanonName||'simple');
+  const bodyCanon = getCanon(bCanonName||'simple');
+  const isSha1 = (tags.a||'').includes('sha1');
+  const hashAlgo = isSha1 ? 'SHA-1' : 'SHA-256';
+
+  // 1. fetch public key from DNS
+  const selectorDomain = tags.s + '._domainkey.' + tags.d;
+  let txt;
+  try{ txt = await getTxtRecords(selectorDomain); }
+  catch(e){ out.result='temperror'; out.detail='DNS error fetching public key: '+e.message; return out; }
+  if (txt.status==='NXDOMAIN' || txt.records.length===0){ out.result='permerror'; out.detail='no DKIM public key found at '+selectorDomain; return out; }
+  const keyRecord = txt.records.find(r=>/p=/.test(r)) || txt.records[0];
+  const keyTags = parseTagList(keyRecord);
+  if (keyTags.p === undefined || keyTags.p === ''){ out.result='permerror'; out.detail='DKIM key revoked (empty p= tag) at '+selectorDomain; return out; }
+
+  // 2. body hash
+  const { headers: parsedHeaders, body } = rfc822Parse(rawBinaryString);
+  const canonicalBody = bodyCanon.canonicalizeBody(body);
+  let computedBH;
+  try{
+    const digest = await crypto.subtle.digest(hashAlgo, binaryStringToBytes(canonicalBody));
+    computedBH = btoa(String.fromCharCode(...new Uint8Array(digest)));
+  }catch(e){ out.result='error'; out.detail='hashing failed: '+e.message; return out; }
+  const expectedBH = (tags.bh||'').replace(/\s+/g,'');
+  const bodyHashMatch = computedBH === expectedBH;
+
+  // 3. header hash + signature
+  const canonHeaders = headerCanon.canonicalizeHeaders(parsedHeaders);
+  const includeHeaders = tags.h.split(':').map(s=>s.trim().toLowerCase());
+  const signedText = hashHeadersText(headerCanon, canonHeaders, includeHeaders, sigHeaderEntry);
+  const signedBytes = binaryStringToBytes(signedText);
+
+  let sigValid = false, cryptoError = null;
+  try{
+    const spkiBytes = derFromBase64Spki(keyTags.p);
+    const pubKey = await crypto.subtle.importKey('spki', spkiBytes, {name:'RSASSA-PKCS1-v1_5', hash:hashAlgo}, false, ['verify']);
+    const sigBytes = derFromBase64Spki(tags.b);
+    sigValid = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', pubKey, sigBytes, signedBytes);
+  }catch(e){ cryptoError = e.message; }
+
+  out.bodyHashMatch = bodyHashMatch;
+  out.signatureValid = sigValid;
+  if (cryptoError){ out.result='error'; out.detail='signature verification error: '+cryptoError; }
+  else if (bodyHashMatch && sigValid){ out.result='pass'; out.detail='body hash and signature both verified'; }
+  else if (!bodyHashMatch){ out.result='fail'; out.detail='body hash mismatch'+(isMsg? ' (expected for .msg — Outlook does not retain the exact original wire MIME body, see note above)':''); }
+  else { out.result='fail'; out.detail='cryptographic signature does not verify (headers modified after signing, or wrong key)'; }
+  return out;
+}
+
+/* =========================================================================
+   SECTION 9 — DMARC evaluation
+   ========================================================================= */
+const MULTI_LABEL_TLDS = new Set(['co.uk','org.uk','gov.uk','ac.uk','me.uk','co.jp','ne.jp','or.jp','co.in','com.au','net.au','org.au','co.nz','com.br','co.za']);
+function orgDomainGuess(domain){
+  const labels = domain.toLowerCase().split('.');
+  if (labels.length<=2) return domain;
+  const lastTwo = labels.slice(-2).join('.');
+  if (MULTI_LABEL_TLDS.has(lastTwo) && labels.length>2) return labels.slice(-3).join('.');
+  return lastTwo;
+}
+function domainsAligned(a, b, mode){
+  a=(a||'').toLowerCase(); b=(b||'').toLowerCase();
+  if (!a||!b) return false;
+  if (mode==='s') return a===b;
+  return orgDomainGuess(a)===orgDomainGuess(b);
+}
+async function dmarcCheck(fromDomain){
+  let d = fromDomain, tried=[];
+  for (let attempt=0; attempt<2; attempt++){
+    tried.push(d);
+    let txt;
+    try{ txt = await getTxtRecords('_dmarc.'+d); } catch(e){ return {result:'temperror', detail:'DNS error: '+e.message, tried}; }
+    const recs = txt.records.filter(r=>/^v=DMARC1/i.test(r));
+    if (recs.length){
+      const tags = parseTagList(recs[0]);
+      return {found:true, atDomain:d, tags, record:recs[0], tried};
+    }
+    const org = orgDomainGuess(fromDomain);
+    if (d===org) break;
+    d = org;
+  }
+  return {found:false, tried};
+}
+
+/* =========================================================================
+   SECTION 10 — Authentication-Results header parsing (as recorded by the
+   receiving mail server at delivery time, for side-by-side comparison)
+   ========================================================================= */
+function parseAuthResults(headerValue){
+  const out = {spf:null, dkim:null, dmarc:null, raw:headerValue};
+  const spfM = /\bspf=(\w+)/i.exec(headerValue); if (spfM) out.spf = spfM[1].toLowerCase();
+  const dkimM = /\bdkim=(\w+)/i.exec(headerValue); if (dkimM) out.dkim = dkimM[1].toLowerCase();
+  const dmarcM = /\bdmarc=(\w+)/i.exec(headerValue); if (dmarcM) out.dmarc = dmarcM[1].toLowerCase();
+  return out;
+}
+
+/* =========================================================================
+   SECTION 11 — sending-IP heuristic from Received headers
+   ========================================================================= */
+// Parse one "Received:" header into its structural parts. Critically, the
+// sending IP is only trusted when it appears INSIDE the "from ... [ip]" or
+// "from ... (host [ip])" clause, in brackets — per RFC 5321 §4.4. Internal
+// relay hops (e.g. Gmail's "Received: by 2002:a17:906:...:with SMTP id ...")
+// use bare hex/colon identifiers that look like IPv6 addresses but are NOT;
+// requiring the bracketed "from" position filters those out entirely.
+function parseReceivedHop(raw){
+  const text = unfoldForDisplay(raw);
+  const byIdx = text.search(/\bby\b/i);
+  const fromPart = byIdx > 0 ? text.slice(0, byIdx) : (/^\s*from\b/i.test(text) ? text : '');
+  const restPart = byIdx > 0 ? text.slice(byIdx) : '';
+  const fromHostM = /^\s*from\s+([^\s(]+)/i.exec(fromPart);
+  const ipM = /\[(?:IPv6:)?([0-9a-fA-F:.]+)\]/i.exec(fromPart);
+  const byHostM = /\bby\s+([^\s(]+)/i.exec(restPart || text);
+  const withM = /\bwith\s+([A-Za-z0-9.\/-]+)/i.exec(restPart || text);
+  const dateM = /;\s*([^;]+)$/.exec(text);
+  const dateRaw = dateM ? dateM[1].trim() : null;
+  return {
+    raw: text,
+    fromHost: fromHostM ? fromHostM[1] : null,
+    ip: (ipM && (isIPv4(ipM[1]) || isIPv6(ipM[1]))) ? ipM[1] : null,
+    byHost: byHostM ? byHostM[1] : null,
+    proto: withM ? withM[1] : null,
+    dateRaw,
+    utc: dateRaw ? toUtcIso(dateRaw) : null,
+  };
+}
+function guessSendingIp(headers){
+  const received = headers.filter(([n])=>n.toLowerCase()==='received').map(([,v])=>v);
+  for (const r of received){
+    const hop = parseReceivedHop(r);
+    if (hop.ip && !isPrivateOrReservedIp(hop.ip)) return {ip: hop.ip, fromHeader: hop.raw, fromHost: hop.fromHost};
+  }
+  return null;
+}
+function extractDomain(addr){
+  const m = /@([^@>\s]+)/.exec(addr||''); return m ? m[1].toLowerCase().replace(/\.$/,'') : null;
+}
+function getReturnPathOrFromDomain(headers, fromAddr){
+  const rp = headers.find(([n])=>n.toLowerCase()==='return-path');
+  if (rp){ const d = extractDomain(unfoldForDisplay(rp[1])); if (d) return {domain:d, source:'Return-Path'}; }
+  const d = extractDomain(fromAddr);
+  return d ? {domain:d, source:'From'} : null;
+}
+
+/* =========================================================================
+   SECTION 12 — Risk signal aggregation (Overview / risk verdict tab)
+   Every other section calls addRiskSignal(...) as it finds something
+   suspicious; this tab just renders whatever has accumulated so far.
+   ========================================================================= */
+let riskSignals = [];
+let pendingAutoChecks = 0;
+const SEVERITY_WEIGHT = {high:3, medium:2, low:1};
+function addRiskSignal(severity, label, detail, key){
+  if (key) riskSignals = riskSignals.filter(r=>r.key!==key);
+  riskSignals.push({severity, label, detail, key});
+  renderOverview();
+}
+function resetRiskSignals(){
+  riskSignals = [];
+  pendingAutoChecks = 3; // spf, dkim, whois (dmarc piggybacks on spf+dkim finishing, no separate counter needed)
+  renderOverview();
+}
+function clearRiskSignal(key){
+  riskSignals = riskSignals.filter(r=>r.key!==key);
+  renderOverview();
+}
+function checkDone(){
+  pendingAutoChecks = Math.max(0, pendingAutoChecks - 1);
+  renderOverview();
+}
+function renderOverview(){
+  const panel = document.querySelector('#panel-overview');
+  if (!panel) return;
+  const score = riskSignals.reduce((s,r)=>s+(SEVERITY_WEIGHT[r.severity]||0), 0);
+  let verdict;
+  if (riskSignals.some(r=>r.severity==='high')) verdict = {label:'HIGH RISK', cls:'fail'};
+  else if (score >= 2) verdict = {label:'MEDIUM RISK', cls:'warn'};
+  else if (score >= 1) verdict = {label:'LOW RISK', cls:'warn'};
+  else verdict = {label: pendingAutoChecks>0 ? 'ANALYZING…' : 'NO ISSUES DETECTED', cls: pendingAutoChecks>0 ? 'neutral' : 'pass'};
+  const sorted = [...riskSignals].sort((a,b)=>(SEVERITY_WEIGHT[b.severity]||0)-(SEVERITY_WEIGHT[a.severity]||0));
+  const rows = sorted.map(r=>`<tr><td class="type"><span class="badge ${r.severity==='high'?'fail':r.severity==='medium'?'warn':'neutral'}">${r.severity.toUpperCase()}</span></td><td><b>${esc(r.label)}</b><div class="note" style="margin:2px 0 0">${esc(r.detail)}</div></td></tr>`).join('');
+  panel.innerHTML = `
+    <div class="card">
+      <div class="toolbar">
+        <span class="badge ${verdict.cls}" style="font-size:14px;padding:7px 16px">${esc(verdict.label)}</span>
+        ${pendingAutoChecks>0 ? '<span class="note"><span class="spinner"></span>still running SPF / DKIM / DMARC / WHOIS checks — this verdict may still change</span>' : ''}
+      </div>
+      <div class="note" style="margin-top:10px">Aggregates every automated signal found across the other tabs (authentication failures, disguised attachments, lookalike domains, a freshly-registered sender domain, Reply-To mismatches, and any reputation hits you run in IOC Lookup) into one score. This is a heuristic aid to prioritize your review, not a definitive verdict.</div>
+    </div>
+    <div class="card">
+      <h3>Findings (${riskSignals.length})</h3>
+      <table class="urltable">${rows || '<tr><td class="empty" colspan="2">No suspicious signals found so far.</td></tr>'}</table>
+    </div>`;
+}
+
+/* =========================================================================
+   SECTION 13 — WHOIS via RDAP (the standardized, JSON-based successor to
+   WHOIS). Free, no API key, via the rdap.org bootstrap redirector.
+   ========================================================================= */
+// RDAP needs no auth and returns public data, so we can fall back through
+// several public CORS proxies. Try the direct call first (fast when the
+// registry sends CORS headers), then each proxy in turn, and accept the first
+// response that actually looks like an RDAP record. A single proxy is not
+// enough — they get rate-limited, go offline, or reject file:// origins — so we
+// chain a few and only give up if every one fails.
+async function fetchRdap(domain){
+  const target = 'https://rdap.org/domain/'+encodeURIComponent(domain);
+  const attempts = [
+    target,
+    'https://api.allorigins.win/raw?url='+encodeURIComponent(target),
+    'https://corsproxy.io/?url='+encodeURIComponent(target),
+    'https://thingproxy.freeboard.io/fetch/'+target
+  ];
+  let lastErr = null;
+  for (const url of attempts){
+    try{
+      const r = await fetch(url, {headers:{Accept:'application/rdap+json, application/json'}});
+      if (!r.ok){ lastErr = new Error('HTTP '+r.status); continue; }
+      const j = await r.json();
+      // A real RDAP record carries at least one of these; anything else is a proxy error page.
+      if (j && (j.events || j.entities || j.ldhName || j.handle || j.status)) return j;
+      lastErr = new Error('response was not a valid RDAP record');
+    }catch(e){ lastErr = e; }
+  }
+  throw new Error((lastErr && lastErr.message) || 'all lookup methods failed');
+}
+function parseRdapEvents(json){
+  const events = {};
+  (json.events||[]).forEach(e=>{ if (e.eventAction) events[e.eventAction] = e.eventDate; });
+  return events;
+}
+function parseRdapRegistrar(json){
+  const ent = (json.entities||[]).find(e=>(e.roles||[]).includes('registrar'));
+  if (!ent) return null;
+  const vcard = ent.vcardArray && ent.vcardArray[1] || [];
+  const fnEntry = vcard.find(v=>v[0]==='fn');
+  return fnEntry ? fnEntry[3] : (ent.handle || null);
+}
+async function renderWhois(ctx){
+  const panel = document.querySelector('#panel-whois');
+  const rp = getReturnPathOrFromDomain(ctx.headers, ctx.fromAddress);
+  const domain = rp?.domain || extractDomain(ctx.fromAddress);
+  if (!domain){
+    panel.innerHTML = '<div class="card"><div class="note">No sender domain available to look up.</div></div>';
+    checkDone(); return;
+  }
+  panel.innerHTML = `<div class="card"><h3>WHOIS / RDAP &mdash; ${esc(domain)}</h3><div class="note"><span class="spinner"></span>Looking up via RDAP&hellip;</div></div>`;
+  try{
+    const json = await fetchRdap(domain);
+    const events = parseRdapEvents(json);
+    const registrar = parseRdapRegistrar(json);
+    const regDate = events.registration;
+    const ageDays = regDate ? Math.floor((Date.now() - new Date(regDate).getTime())/86400000) : null;
+    if (ageDays !== null){
+      if (ageDays < 30) addRiskSignal('high', 'Newly registered sender domain', domain+' was registered only '+ageDays+' day(s) ago', 'whois-age');
+      else if (ageDays < 180) addRiskSignal('medium', 'Recently registered sender domain', domain+' was registered '+ageDays+' days ago', 'whois-age');
+    }
+    panel.innerHTML = `<div class="card">
+      <h3>WHOIS / RDAP &mdash; ${esc(domain)}</h3>
+      <div class="kv"><span>Registered</span><span>${events.registration? esc(toUtcIso(events.registration)||events.registration)+(ageDays!==null?' ('+ageDays+' days ago)':'') : 'unknown'}</span></div>
+      <div class="kv"><span>Last changed</span><span>${esc(events['last changed'] ? (toUtcIso(events['last changed'])||events['last changed']) : 'unknown')}</span></div>
+      <div class="kv"><span>Expires</span><span>${esc(events.expiration ? (toUtcIso(events.expiration)||events.expiration) : 'unknown')}</span></div>
+      <div class="kv"><span>Registrar</span><span>${esc(registrar || 'unknown')}</span></div>
+      <div class="kv"><span>Status</span><span>${esc((json.status||[]).join(', ') || 'unknown')}</span></div>
+      <div class="kv"><span>Nameservers</span><span>${esc((json.nameservers||[]).map(n=>n.ldhName).filter(Boolean).join(', ') || 'unknown')}</span></div>
+      <div class="note">Fetched live via RDAP (through the rdap.org bootstrap redirector), the standardized JSON successor to WHOIS. Some registries don't run a fully populated or CORS-enabled RDAP server — if so you'll see an error instead of this data.</div>
+    </div>`;
+  }catch(e){
+    panel.innerHTML = `<div class="card"><h3>WHOIS / RDAP &mdash; ${esc(domain)}</h3><div class="badbanner">Lookup failed after trying the registry directly and every public CORS proxy: ${esc(e.message)}. This can happen if the domain has no public RDAP record, or if all proxies are momentarily rate-limited or offline — try again in a moment.</div></div>`;
+  }
+  checkDone();
+}
+
+/* =========================================================================
+   SECTION 15 — IOC reputation lookup (direct links, no API key, no proxy)
+   AbuseIPDB / VirusTotal block direct browser API calls (no CORS) and need an
+   auth header that public proxies strip. Instead of fighting that, we just
+   build one-click links straight to each vendor's report page for the
+   indicator: zero setup, no key, and nothing leaves your browser until you
+   actually click a link.
+   ========================================================================= */
+function detectIocType(value){
+  if (/^[a-f0-9]{32}$|^[a-f0-9]{40}$|^[a-f0-9]{64}$/i.test(value)) return 'hash';
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(value) || (value.includes(':') && !value.includes('.'))) return 'ip';
+  return 'domain';
+}
+function iocLinks(type, value){
+  const v = encodeURIComponent(value);
+  if (type==='ip') return [
+    ['AbuseIPDB', 'https://www.abuseipdb.com/check/'+v],
+    ['VirusTotal', 'https://www.virustotal.com/gui/ip-address/'+v],
+    ['Shodan', 'https://www.shodan.io/host/'+v]
+  ];
+  if (type==='domain') return [
+    ['VirusTotal', 'https://www.virustotal.com/gui/domain/'+v],
+    ['AbuseIPDB WHOIS', 'https://www.abuseipdb.com/whois/'+v],
+    ['urlscan.io', 'https://urlscan.io/search/#'+v]
+  ];
+  return [ ['VirusTotal', 'https://www.virustotal.com/gui/file/'+v] ]; // hash
+}
+function renderIocLookup(){
+  const panel = document.querySelector('#panel-ioc');
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="card">
+      <h3>Reputation lookup</h3>
+      <div class="toolbar">
+        <select id="iocType" class="input">
+          <option value="auto">Auto-detect</option>
+          <option value="ip">Public IP</option>
+          <option value="domain">Domain</option>
+          <option value="hash">File hash</option>
+        </select>
+        <input type="text" id="iocValue" class="input" style="flex:1;min-width:240px" placeholder="e.g. 203.0.113.7, example.com, or a file hash">
+        <button class="btn small" id="iocCheckBtn">Get links</button>
+      </div>
+      <div id="iocResult"></div>
+      <div class="note">Opens each service's own report page for the indicator in a new tab &mdash; no API key, no proxy, nothing sent anywhere until you click. AbuseIPDB reputation is IP-only; VirusTotal covers IPs, domains and file hashes.</div>
+    </div>`;
+  const run = ()=>{
+    const raw = document.querySelector('#iocValue').value.trim();
+    const sel = document.querySelector('#iocType').value;
+    const resultEl = document.querySelector('#iocResult');
+    if (!raw){ resultEl.innerHTML = '<div class="note">Enter an IP, domain or hash first.</div>'; return; }
+    const type = sel==='auto' ? detectIocType(raw) : sel;
+    const links = iocLinks(type, raw);
+    resultEl.innerHTML = `<div class="note" style="margin-top:10px">Interpreted <b>${esc(raw)}</b> as <b>${esc(type)}</b> &mdash; open in:</div>`+
+      `<div class="toolbar" style="margin-top:8px">`+
+      links.map(([name,url])=>`<a class="btn small" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} &#8599;</a>`).join('')+
+      `</div>`;
+  };
+  document.querySelector('#iocCheckBtn').addEventListener('click', run);
+  document.querySelector('#iocValue').addEventListener('keydown', e=>{ if (e.key==='Enter') run(); });
+}
+
+/* =========================================================================
+   SECTION 16 — UI plumbing
+   ========================================================================= */
+const $ = sel => document.querySelector(sel);
+const dropEl = $('#drop'), fileInput = $('#fileInput'), statusEl = $('#status'), appEl = $('#app');
+let currentFileName = null;
+
+// ---- Light/dark theme toggle (persisted) ----
+const themeBtn = $('#themeBtn');
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  try{ localStorage.setItem('eft-theme', t); }catch(e){}
+  themeBtn.textContent = t==='light' ? '🌙 Dark mode' : '☀️ Light mode';
+}
+applyTheme((()=>{ try{ return localStorage.getItem('eft-theme'); }catch(e){ return null; } })() || 'dark');
+themeBtn.addEventListener('click', ()=>{
+  applyTheme(document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light');
+});
+
+// ---- Export as standalone HTML snapshot or as PDF (via browser print) ----
+function downloadBlob(content, filename, mime){
+  const blob = new Blob([content], {type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 5000);
+}
+function exportHtml(){
+  const clone = appEl.cloneNode(true);
+  clone.style.display = 'block';
+  clone.querySelectorAll('.tabs').forEach(t=>t.remove());
+  clone.querySelectorAll('.panel').forEach(p=>{ p.style.display='block'; });
+  const styleTag = document.querySelector('style').outerHTML;
+  const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+  const html = `<!DOCTYPE html><html lang="en" data-theme="${theme}"><head><meta charset="UTF-8"><title>Email Forensics Report${currentFileName? ' - '+esc(currentFileName):''}</title>${styleTag}</head><body>
+<header><h1>Email Forensics Report</h1><p>Static snapshot generated ${esc(new Date().toISOString().replace(/\.\d{3}Z$/,'Z'))} from ${esc(currentFileName||'an analyzed message')}. This is a read-only export — reopen the original tool to re-run live checks.</p></header>
+<div class="container">${clone.outerHTML}</div>
+</body></html>`;
+  downloadBlob(html, (currentFileName||'email-report').replace(/\.[^.]+$/,'')+'.report.html', 'text/html');
+}
+function exportPdf(){ window.print(); }
+$('#exportHtmlBtn').addEventListener('click', exportHtml);
+$('#exportPdfBtn').addEventListener('click', exportPdf);
+renderIocLookup();
+window.jumpToIocCheck = function(type, value){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelector('.tab[data-tab="ioc"]').classList.add('active');
+  $('#panel-ioc').classList.add('active');
+  $('#iocType').value = type;
+  $('#iocValue').value = value;
+  $('#iocCheckBtn').click();
+};
+
+dropEl.addEventListener('click', ()=>fileInput.click());
+dropEl.addEventListener('dragover', e=>{ e.preventDefault(); dropEl.classList.add('drag'); });
+dropEl.addEventListener('dragleave', ()=> dropEl.classList.remove('drag'));
+dropEl.addEventListener('drop', e=>{
+  e.preventDefault(); dropEl.classList.remove('drag');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{ if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    $('#panel-'+tab.dataset.tab).classList.add('active');
+  });
+});
+
+function setStatus(msg, isErr){ statusEl.textContent = msg; statusEl.className = 'status'+(isErr?' err':''); }
+function esc(s){ return (s??'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function handleFile(file){
+  setStatus('Parsing '+file.name+'...');
+  appEl.style.display='none';
+  $('#exportHtmlBtn').disabled = true;
+  $('#exportPdfBtn').disabled = true;
+  try{
+    const ext = (file.name.split('.').pop()||'').toLowerCase();
+    const buf = await file.arrayBuffer();
+    if (ext === 'msg') await processMsg(buf, file.name);
+    else await processEml(buf, file.name);
+    appEl.style.display='block';
+    currentFileName = file.name;
+    $('#exportHtmlBtn').disabled = false;
+    $('#exportPdfBtn').disabled = false;
+    setStatus('Loaded '+file.name+' ('+Math.round(file.size/1024)+' KB)');
+  }catch(e){
+    console.error(e);
+    setStatus('Failed to parse file: '+e.message, true);
+  }
+}
+
+async function processEml(buf, filename){
+  const bytes = new Uint8Array(buf);
+  const rawBinary = bytesToBinaryString(bytes);
+  const { headers } = rfc822Parse(rawBinary);
+  const parsed = await PostalMime.parse(buf);
+  await renderAll({
+    headers, rawBinary, isMsg:false,
+    text: parsed.text, html: parsed.html,
+    attachments: (parsed.attachments||[]).map(a=>({
+      filename:a.filename||'(unnamed)',
+      bytes:new Uint8Array(a.content instanceof ArrayBuffer? a.content : (a.content?.buffer||new ArrayBuffer(0))),
+      mimeType: a.mimeType || null,
+      contentId: stripAngles(a.contentId) || null,
+    })),
+    fromAddress: parsed.from?.address || null,
+  });
+}
+
+async function processMsg(buf, filename){
+  const reader = new MsgReader(new Uint8Array(buf));
+  const info = reader.getFileData();
+  let headers, rawBinary, reconstructed=false;
+  if (info.headers && info.headers.trim().length>0){
+    rawBinary = info.headers.replace(/\n/g,'\r\n').replace(/\r\r\n/g,'\r\n');
+    if (!rawBinary.endsWith('\r\n\r\n')) rawBinary += '\r\n';
+    headers = rfc822Parse(rawBinary).headers;
+  } else {
+    reconstructed = true;
+    const lines = [];
+    if (info.senderName) lines.push('From: '+info.senderName);
+    if (info.recipients) lines.push('To: '+info.recipients.map(r=>r.name).join(', '));
+    if (info.subject) lines.push('Subject: '+info.subject);
+    rawBinary = lines.join('\r\n') + '\r\n\r\n';
+    headers = rfc822Parse(rawBinary).headers;
+  }
+  const attachments = (info.attachments||[]).map(a=>{
+    const data = reader.getAttachment(a);
+    return {
+      filename: data.fileName || a.fileName || '(unnamed)',
+      bytes: new Uint8Array(data.content||[]),
+      mimeType: a.attachMimeTag || null,
+      contentId: stripAngles(a.pidContentId) || null,
+    };
+  });
+  await renderAll({
+    headers, rawBinary, isMsg:true, reconstructed,
+    text: info.body || '', html: info.bodyHtml || (info.html ? new TextDecoder('utf-8',{fatal:false}).decode(info.html) : ''),
+    attachments,
+    fromAddress: info.senderEmail || null,
+  });
+}
+
+function checkHeaderAnomalies(headers, fromAddr){
+  const replyTo = headers.find(([n])=>n.toLowerCase()==='reply-to');
+  if (replyTo){
+    const rtDomain = extractDomain(unfoldForDisplay(replyTo[1]));
+    const fromDomain = extractDomain(fromAddr);
+    if (rtDomain && fromDomain && orgDomainGuess(rtDomain) !== orgDomainGuess(fromDomain)){
+      addRiskSignal('medium', 'Reply-To differs from From', 'Replies would go to "'+rtDomain+'" instead of "'+fromDomain+'"', 'reply-to-mismatch');
+    }
+  }
+}
+async function renderAll(ctx){
+  resetRiskSignals();
+  renderHeaders(ctx);
+  renderBody(ctx);
+  renderUrls(ctx);
+  await renderAttachments(ctx);
+  checkHeaderAnomalies(ctx.headers, ctx.fromAddress);
+  renderAuth(ctx); // kicks off async SPF/DKIM/DMARC checks
+  renderWhois(ctx); // async, reports completion via checkDone()
+}
+
+// Headers listed here are always shown first, in this order, when present;
+// every other header follows afterward in its original message order.
+const PRIORITY_HEADERS = ['from','to','subject','date','return-path','x-mailer'];
+function orderHeadersForDisplay(headers){
+  const usedIdx = new Set();
+  const priorityRows = [];
+  PRIORITY_HEADERS.forEach(name=>{
+    headers.forEach(([n,v], idx)=>{
+      if (!usedIdx.has(idx) && n.toLowerCase()===name){ priorityRows.push([n,v]); usedIdx.add(idx); }
+    });
+  });
+  const restRows = headers.filter((_, idx)=>!usedIdx.has(idx));
+  return [...priorityRows, ...restRows];
+}
+function renderHopsTable(headers){
+  const received = headers.filter(([n])=>n.toLowerCase()==='received').map(([,v])=>v);
+  if (!received.length) return '<div class="note">No Received headers found — either this message never traveled through an SMTP relay, or they were stripped.</div>';
+  const hops = received.map(parseReceivedHop).reverse(); // chronological: origin first, final delivery last
+  const rows = hops.map((h,i)=>{
+    const ipBadge = h.ip
+      ? (isPrivateOrReservedIp(h.ip) ? '<span class="badge neutral">'+esc(h.ip)+' (private)</span>' : '<span class="badge warn">'+esc(h.ip)+' (public)</span>')
+      : '<span class="badge neutral">no IP</span>';
+    return `<tr>
+      <td class="type">Hop ${i+1}${i===hops.length-1?' (final)':''}</td>
+      <td>
+        <div><b>from</b> ${esc(h.fromHost||'—')} ${ipBadge}</div>
+        <div class="note" style="margin:2px 0"><b>by</b> ${esc(h.byHost||'—')}${h.proto? ' &middot; with '+esc(h.proto):''}</div>
+        <div class="note" style="margin:2px 0">${h.utc? 'UTC: '+esc(h.utc) : esc(h.dateRaw||'(no timestamp)')}</div>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<table class="urltable hoptable">${rows}</table>`;
+}
+function renderHeaders(ctx){
+  const panel = $('#panel-headers');
+  let banner = '';
+  if (ctx.isMsg && ctx.reconstructed){
+    banner = '<div class="warnbanner">This .msg file does not contain the original transport headers (PR_TRANSPORT_MESSAGE_HEADERS). The header list below was reconstructed from limited MAPI properties, so Received headers, Return-Path, and DKIM-Signature are unavailable — SPF/DKIM/DMARC cannot be verified for this message.</div>';
+  } else if (ctx.isMsg){
+    banner = '<div class="note">Raw internet headers extracted from this .msg file\'s transport-headers property (as originally received by the sending mail server).</div>';
+  }
+  const important = ['from','to','cc','subject','date','message-id','return-path','reply-to','x-mailer'];
+  const ordered = orderHeadersForDisplay(ctx.headers);
+  const rows = ordered.map(([n,v])=>{
+    const disp = unfoldForDisplay(v);
+    const isImportant = important.includes(n.toLowerCase());
+    const isDateField = /date$/i.test(n.trim());
+    const utc = isDateField ? toUtcIso(disp) : null;
+    const valueHtml = esc(textFromBinary(disp)) + (utc ? '<br><span style="color:var(--ok)">UTC: '+esc(utc)+'</span>' : (isDateField ? '<br><span style="color:var(--bad)">could not parse as a date</span>' : ''));
+    return '<tr><td style="'+(isImportant?'':'opacity:.8')+'">'+esc(n)+'</td><td>'+valueHtml+'</td></tr>';
+  }).join('');
+  panel.innerHTML = `
+    <div class="card">
+      <h3>Key fields first, then all header fields (${ctx.headers.length})</h3>
+      ${banner}
+      <table class="headers">${rows || '<tr><td colspan="2" class="empty">No headers found</td></tr>'}</table>
+    </div>
+    <div class="card">
+      <h3>Email hops (Received header path)</h3>
+      ${renderHopsTable(ctx.headers)}
+      <div class="note">Ordered chronologically — hop 1 is where the message originated, the last hop is the server that delivered it to you. The bracketed IP is only trusted when it appears in the "from" clause of each Received header.</div>
+    </div>`;
+}
+
+let remoteContentAllowed = false;
+function sanitizeHtmlForPreview(html, allowRemote){
+  try{
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('script').forEach(el=>el.remove());
+    doc.querySelectorAll('*').forEach(el=>{
+      [...el.attributes].forEach(attr=>{ if (/^on/i.test(attr.name)) el.removeAttribute(attr.name); });
+    });
+    if (!allowRemote){
+      doc.querySelectorAll('[src]').forEach(el=>{
+        const src = el.getAttribute('src');
+        if (src && /^https?:\/\//i.test(src)){ el.setAttribute('data-blocked-src', src); el.removeAttribute('src'); }
+      });
+      doc.querySelectorAll('style, [style]').forEach(el=>{
+        const css = el.tagName==='STYLE' ? el.textContent : el.getAttribute('style');
+        if (css && /url\(\s*['"]?https?:/i.test(css)){
+          if (el.tagName==='STYLE') el.textContent = css.replace(/url\([^)]+\)/gi,'none');
+          else el.setAttribute('style', css.replace(/url\([^)]+\)/gi,'none'));
+        }
+      });
+    }
+    return '<base target="_blank">' + doc.documentElement.outerHTML;
+  }catch(e){ return '<pre>'+esc(html)+'</pre>'; }
+}
+function renderBody(ctx){
+  const panel = $('#panel-body');
+  const hasHtml = ctx.html && ctx.html.trim().length>0;
+  panel.innerHTML = `
+    <div class="card">
+      <div class="toolbar">
+        ${hasHtml ? '<button class="btn small" id="btnText">Plain text</button><button class="btn small" id="btnHtml">HTML (sandboxed)</button>' : ''}
+        ${hasHtml ? '<button class="btn small" id="btnRemote">Load remote images/styles</button>' : ''}
+      </div>
+      <div id="bodyText" class="mono"></div>
+      <div id="bodyHtml" style="display:none"></div>
+      <div class="note">${hasHtml ? 'Remote images and background styles are blocked by default to prevent tracking-pixel confirmation to a sender. Click "Load remote images/styles" only if you trust this message.' : ''}</div>
+    </div>`;
+  const textEl = $('#bodyText'), htmlEl = $('#bodyHtml');
+  textEl.innerHTML = '<pre class="textbody">'+esc(ctx.text || '(no plain-text body found)')+'</pre>';
+  function paintHtml(){
+    const iframe = document.createElement('iframe');
+    iframe.className = 'bodyframe';
+    iframe.setAttribute('sandbox','allow-same-origin');
+    iframe.srcdoc = sanitizeHtmlForPreview(ctx.html, remoteContentAllowed);
+    htmlEl.innerHTML = '';
+    htmlEl.appendChild(iframe);
+  }
+  if (hasHtml){
+    paintHtml();
+    $('#btnText').onclick = ()=>{ textEl.style.display='block'; htmlEl.style.display='none'; };
+    $('#btnHtml').onclick = ()=>{ textEl.style.display='none'; htmlEl.style.display='block'; };
+    $('#btnRemote').onclick = ()=>{ remoteContentAllowed = true; paintHtml(); };
+    htmlEl.style.display='none';
+  }
+}
+
+function renderUrls(ctx){
+  const panel = $('#panel-urls');
+  const { urls, ips } = extractUrlsAndIps(ctx.text, ctx.html);
+  const domains = extractDomains(ctx.text, ctx.html, urls);
+  panel.innerHTML = `
+    <div class="card">
+      <div class="toolbar"><h3 style="margin:0">URLs found (${urls.length})</h3><button class="btn small" id="defangBtn">Toggle defang</button></div>
+      <table class="urltable" id="urlTable">${urls.length? urls.map(u=>'<tr><td class="type">URL</td><td class="mono url-cell" data-raw="'+esc(u)+'">'+esc(u)+'</td></tr>').join('') : '<tr><td class="empty" colspan="2">No URLs found in body</td></tr>'}</table>
+    </div>
+    <div class="card">
+      <h3>Domains found (${domains.length})</h3>
+      <table class="urltable">${domains.length? domains.map(d=>'<tr><td class="type">Domain</td><td class="mono">'+esc(d)+' <a href="#" onclick="jumpToIocCheck(\'domain\',\''+esc(d)+'\');return false;">check&nbsp;&rarr;</a></td></tr>').join('') : '<tr><td class="empty" colspan="2">No domains found</td></tr>'}</table>
+      <div class="note">Extracted from link hostnames, email addresses, and plain-text domain mentions in the body.</div>
+    </div>
+    <div class="card">
+      <h3>IP addresses found (${ips.length})</h3>
+      <table class="urltable">${ips.length? ips.map(ip=>'<tr><td class="type">'+(isIPv6(ip)?'IPv6':'IPv4')+'</td><td class="mono">'+esc(ip)+(isPrivateOrReservedIp(ip)?' <span class="badge neutral">private/reserved</span>':' <span class="badge warn">public</span> <a href="#" onclick="jumpToIocCheck(\'ip\',\''+esc(ip)+'\');return false;">check&nbsp;&rarr;</a>')+'</td></tr>').join('') : '<tr><td class="empty" colspan="2">No IP literals found in body</td></tr>'}</table>
+    </div>`;
+  let defanged = false;
+  $('#defangBtn').onclick = ()=>{
+    defanged = !defanged;
+    document.querySelectorAll('.url-cell').forEach(td=>{
+      const raw = td.dataset.raw;
+      td.textContent = defanged ? defang(raw) : raw;
+    });
+  };
+}
+
+async function renderAttachments(ctx){
+  const panel = $('#panel-attachments');
+  if (!ctx.attachments.length){ panel.innerHTML = '<div class="card"><div class="empty">No attachments</div></div>'; return; }
+  panel.innerHTML = `<div class="card"><h3>Attachments (${ctx.attachments.length})</h3><div class="attachlist" id="attachList"><div class="empty">Computing SHA256 hashes&hellip;</div></div>
+    <div class="note">Detection reads the file's magic number (signature bytes) in memory only and compares it against the claimed file extension. A mismatch — especially an executable disguised as a document or image — is a strong phishing indicator. Downloads are generated locally from an in-memory copy; nothing is uploaded anywhere.</div></div>`;
+  const items = await Promise.all(ctx.attachments.map(async (a)=>{
+    const check = checkExtensionMatch(a.filename, a.bytes);
+    const hash = await sha256Hex(a.bytes);
+    const mime = a.mimeType || guessMimeFromExt(check.ext);
+    const url = URL.createObjectURL(new Blob([a.bytes], {type: mime}));
+    const badge = check.mismatch
+      ? '<span class="badge '+(check.dangerType?'fail':'warn')+'">'+(check.dangerType?'DANGER: type mismatch':'mismatch')+'</span>'
+      : '<span class="badge pass">extension matches</span>';
+    if (check.mismatch){
+      addRiskSignal(check.dangerType?'high':'medium',
+        'Attachment type mismatch: '+a.filename,
+        'Claims to be .'+(check.ext||'?')+' but its content is actually '+check.detected,
+        'attach-'+a.filename);
+    }
+    return `<div class="attach">
+      <div style="flex:1;min-width:0">
+        <div class="name">${esc(a.filename)}</div>
+        <div class="meta">${(a.bytes.length/1024).toFixed(1)} KB &middot; claimed .${esc(check.ext||'?')} &middot; detected: ${esc(check.detected)}</div>
+        <div class="meta">MIME type: ${esc(mime)}${a.mimeType?'':' (guessed from extension, not present in the file)'} &middot; Content-ID: ${esc(a.contentId||'—')}</div>
+        <div class="meta mono">SHA256: ${hash} <a href="#" class="mono" onclick="jumpToIocCheck('hash','${hash}');return false;">check&nbsp;&rarr;</a></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
+        ${badge}
+        <a class="btn small" href="${url}" download="${esc(a.filename)}">Download</a>
+      </div>
+    </div>`;
+  }));
+  $('#attachList').innerHTML = items.join('');
+}
+
+function badgeFor(result){
+  const cls = {pass:'pass', fail:'fail', none:'neutral', neutral:'neutral', softfail:'warn', permerror:'fail', temperror:'warn', error:'fail'}[result] || 'neutral';
+  return '<span class="badge '+cls+'">'+esc((result||'unknown').toUpperCase())+'</span>';
+}
+
+async function renderAuth(ctx){
+  const panel = $('#panel-auth');
+  const authHeader = ctx.headers.find(([n])=>n.toLowerCase()==='authentication-results');
+  const reportedAuth = authHeader ? parseAuthResults(unfoldForDisplay(authHeader[1])) : null;
+
+  if (ctx.isMsg && ctx.reconstructed){
+    panel.innerHTML = '<div class="card"><div class="badbanner">No transport headers available for this .msg file — SPF/DKIM/DMARC cannot be checked.</div></div>';
+    return;
+  }
+
+  panel.innerHTML = `
+    <div class="card">
+      ${ctx.isMsg ? '<div class="warnbanner">This message came from a .msg file. DKIM body-hash verification is best-effort: Outlook stores a decoded copy of the body, not the exact original wire MIME bytes, so a live DKIM check may show FAIL even for a genuinely legitimate email. Treat DKIM results for .msg files as indicative, not authoritative — the header-based Authentication-Results (if present, reflecting what the receiving server determined at delivery time) is more reliable.</div>' : ''}
+      <div class="grid" id="liveResults">
+        <div class="authbox">
+          <h4>SPF (live DNS check)</h4>
+          <details class="howbox"><summary>How is this calculated?</summary>
+            <p>SPF lets a domain publish, in DNS, which mail servers are allowed to send on its behalf (a TXT record starting with <code>v=spf1</code>).</p>
+            <p>Steps: (1) pick the domain to check — the <b>Return-Path</b> (envelope-from) if present, otherwise the <b>From</b> address's domain; (2) guess the sending IP from the topmost external <b>Received:</b> header; (3) fetch that domain's current SPF TXT record over DNS; (4) evaluate its mechanisms (ip4/ip6/include/a/mx/all) against that IP, following <code>include:</code> chains up to the RFC&nbsp;7208 10-lookup limit.</p>
+            <p><b>Caveats:</b> this reflects today's DNS, which may differ from what applied when the message was actually sent, and the sending-IP guess is a heuristic, not certain proof.</p>
+          </details>
+          <div id="spfBox">Checking&hellip;</div>
+        </div>
+        <div class="authbox">
+          <h4>DKIM (live signature verification)</h4>
+          <details class="howbox"><summary>How is this calculated?</summary>
+            <p>DKIM lets a sending domain cryptographically sign a message. The <code>DKIM-Signature</code> header carries the signing domain (<code>d=</code>), a selector (<code>s=</code>), the list of signed headers (<code>h=</code>) and a body hash (<code>bh=</code>).</p>
+            <p>Steps: (1) fetch the domain's public key from DNS at <code>&lt;selector&gt;._domainkey.&lt;domain&gt;</code>; (2) recompute the body hash ourselves using the exact canonicalization (simple/relaxed) declared in <code>c=</code>, and compare it to <code>bh=</code>; (3) reconstruct the exact bytes originally signed (the listed headers, in the order the signer used them, plus the signature header itself with <code>b=</code> blanked) and cryptographically verify them against the public key with your browser's own Web&nbsp;Crypto API (RSA/SHA-256). Both the body hash and the signature must check out for a PASS.</p>
+            <p><b>Caveat:</b> for messages loaded from a .msg file, the body hash step is often unreliable — see the banner above.</p>
+          </details>
+          <div id="dkimBox">Checking&hellip;</div>
+        </div>
+        <div class="authbox">
+          <h4>DMARC (live policy check)</h4>
+          <details class="howbox"><summary>How is this calculated?</summary>
+            <p>DMARC builds on SPF and DKIM by requiring "alignment": the domain that actually passed SPF or DKIM must match the domain shown in the visible <b>From:</b> address — either exactly (<code>strict</code>) or at the organizational-domain level (<code>relaxed</code>, the default).</p>
+            <p>Steps: (1) fetch <code>_dmarc.&lt;domain&gt;</code>'s TXT record (walking up to the organizational domain if the exact domain has none); (2) read its policy (<code>p=none/quarantine/reject</code>) and alignment mode (<code>aspf=</code>/<code>adkim=</code>); (3) check whether the SPF or DKIM result above is both a PASS and aligned with the From domain. DMARC passes if either one is.</p>
+          </details>
+          <div id="dmarcBox">Checking&hellip;</div>
+        </div>
+      </div>
+      <div class="note">Live checks query current public DNS (via Google/Cloudflare DNS-over-HTTPS) and, for DKIM, cryptographically re-verify the signature in your browser using the Web Crypto API. DNS records may have changed since this message was sent.</div>
+    </div>
+    ${reportedAuth ? `<div class="card"><h3>As originally recorded by the receiving mail server</h3>
+      <div class="kv"><span>SPF</span><span>${badgeFor(reportedAuth.spf)}</span></div>
+      <div class="kv"><span>DKIM</span><span>${badgeFor(reportedAuth.dkim)}</span></div>
+      <div class="kv"><span>DMARC</span><span>${badgeFor(reportedAuth.dmarc)}</span></div>
+      <div class="note mono">${esc(unfoldForDisplay(authHeader[1]))}</div>
+    </div>` : '<div class="card"><div class="note">No Authentication-Results header found in this message (it may not have passed through a server that adds one).</div></div>'}
+  `;
+
+  const fromDomain = extractDomain(ctx.fromAddress) || getReturnPathOrFromDomain(ctx.headers, ctx.fromAddress)?.domain;
+
+  // ---- SPF ----
+  (async ()=>{
+    const box = $('#spfBox');
+    try{
+      const rp = getReturnPathOrFromDomain(ctx.headers, ctx.fromAddress);
+      const sender = guessSendingIp(ctx.headers);
+      if (!rp){ box.innerHTML = badgeFor('none') + '<div class="note">Could not determine sender domain (no Return-Path or From address)</div>'; checkDone(); return; }
+      if (!sender){ box.innerHTML = badgeFor('none') + '<div class="note">Could not find a public sending IP in Received headers</div>'; checkDone(); return; }
+      const res = await spfCheck(rp.domain, sender.ip);
+      window.__lastSpf = res;
+      if (['fail','permerror','temperror'].includes(res.result)) addRiskSignal('high', 'SPF '+res.result.toUpperCase(), rp.domain+': '+(res.reason||''), 'spf');
+      else if (res.result==='softfail') addRiskSignal('medium', 'SPF SOFTFAIL', rp.domain+': '+(res.reason||''), 'spf');
+      box.innerHTML = badgeFor(res.result) +
+        `<div class="note">Domain checked: <b>${esc(rp.domain)}</b> (${esc(rp.source)})<br>Candidate sending IP: <b>${esc(sender.ip)}</b>${sender.fromHost? ' (host: '+esc(sender.fromHost)+')':''} — from the first "Received: from" hop with a bracketed public IP<br>${esc(res.reason||'')}</div>` +
+        (res.record ? `<div class="note mono">${esc(res.record)}</div>` : '');
+      renderDmarc(fromDomain, res, window.__lastDkim);
+    }catch(e){ box.innerHTML = badgeFor('error') + '<div class="note">'+esc(e.message)+'</div>'; }
+    checkDone();
+  })();
+
+  // ---- DKIM ----
+  (async ()=>{
+    const box = $('#dkimBox');
+    const sigHeaders = ctx.headers.filter(([n])=>n.toLowerCase()==='dkim-signature');
+    if (!sigHeaders.length){ box.innerHTML = badgeFor('none') + '<div class="note">No DKIM-Signature header present</div>'; window.__lastDkim=[]; checkDone(); return; }
+    try{
+      const results = [];
+      for (const sh of sigHeaders){ results.push(await dkimVerifyOne(ctx.headers, ctx.rawBinary, sh, ctx.isMsg)); }
+      window.__lastDkim = results;
+      if (results.every(r=>r.result==='fail'||r.result==='permerror'||r.result==='error')) addRiskSignal('high', 'DKIM verification failed', results.map(r=>r.domain+': '+r.detail).join('; '), 'dkim');
+      box.innerHTML = results.map(r=>
+        badgeFor(r.result) + `<div class="note">d=<b>${esc(r.domain)}</b> s=${esc(r.selector)} a=${esc(r.algorithm)} c=${esc(r.canon)}<br>${esc(r.detail)}</div>`
+      ).join('<hr style="border-color:var(--border);opacity:.3">');
+      renderDmarc(fromDomain, window.__lastSpf, results);
+    }catch(e){ box.innerHTML = badgeFor('error') + '<div class="note">'+esc(e.message)+'</div>'; }
+    checkDone();
+  })();
+
+  // ---- DMARC ----
+  async function renderDmarc(domain, spfRes, dkimResList){
+    const box = $('#dmarcBox');
+    if (!domain){ box.innerHTML = badgeFor('none') + '<div class="note">No From domain to check</div>'; return; }
+    try{
+      const d = await dmarcCheck(domain);
+      if (!d.found){ box.innerHTML = badgeFor('none') + `<div class="note">No DMARC record published for ${esc(domain)} (checked: ${d.tried.map(esc).join(', ')})</div>`; return; }
+      const p = d.tags.p || 'none', aspf = d.tags.aspf||'r', adkim = d.tags.adkim||'r';
+      const rp = getReturnPathOrFromDomain(ctx.headers, ctx.fromAddress);
+      const spfAligned = spfRes ? domainsAligned(rp?.domain, domain, aspf) : false;
+      const spfPass = spfRes && spfRes.result === 'pass' && spfAligned;
+      const dkimPass = Array.isArray(dkimResList) && dkimResList.some(r=>r.result==='pass' && domainsAligned(r.domain, domain, adkim));
+      const overall = (spfPass || dkimPass) ? 'pass' : 'fail';
+      if (overall==='fail') addRiskSignal(p==='reject'||p==='quarantine'?'high':'medium', 'DMARC FAIL', domain+': policy p='+p+', SPF aligned='+spfAligned+', DKIM aligned='+dkimPass, 'dmarc');
+      else clearRiskSignal('dmarc'); // passes cleanly: make sure no stale fail from the first (SPF-only or DKIM-only) partial evaluation lingers
+      box.innerHTML = badgeFor(overall) +
+        `<div class="note">Domain: <b>${esc(domain)}</b> (found at ${esc(d.atDomain)})<br>Policy p=<b>${esc(p)}</b>, aspf=${esc(aspf)}, adkim=${esc(adkim)}${d.tags.pct? ', pct='+esc(d.tags.pct):''}<br>` +
+        `SPF aligned: ${spfAligned?'yes':'no'} &middot; DKIM aligned: ${dkimPass?'yes':'no'}<br>` +
+        (overall==='fail' ? `If this were enforced today, policy <b>${esc(p)}</b> would apply.` : 'Message would pass DMARC.') + `</div>` +
+        `<div class="note mono">${esc(d.record)}</div>`;
+    }catch(e){ box.innerHTML = badgeFor('error') + '<div class="note">'+esc(e.message)+'</div>'; }
+  }
+}
+</script>
+</body>
+</html>
