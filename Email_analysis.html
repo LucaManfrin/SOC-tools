@@ -83,7 +83,7 @@
   .input{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:12.5px}
   label.fieldlabel{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
   @media print{
-    #drop, #status, .tabs, .headertoolbar, header p, .btn, a.btn, details.howbox { display:none !important; }
+    #drop, #pasteHeaderCard, #status, .tabs, .headertoolbar, header p, .btn, a.btn, details.howbox { display:none !important; }
     body{background:#fff;color:#000}
     .card{border-color:#ccc;break-inside:avoid}
     .panel{display:block !important;padding:6px 0}
@@ -109,6 +109,13 @@
     <div>Drop an <b>.eml</b> or <b>.msg</b> file here, or click to choose</div>
     <div class="hint">Nothing is uploaded anywhere &mdash; all parsing happens on this page, in memory.</div>
     <input type="file" id="fileInput" accept=".eml,.msg">
+  </div>
+  <div class="card" style="margin-top:14px" id="pasteHeaderCard">
+    <h3>Or paste raw email headers</h3>
+    <label class="fieldlabel" for="pastedHeaders">Paste the complete email headers (including folded Received, Authentication-Results and DKIM-Signature fields).</label>
+    <textarea id="pastedHeaders" class="input" rows="9" spellcheck="false" style="width:100%;resize:vertical;margin-top:8px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace" placeholder="From: sender@example.com&#10;To: recipient@example.net&#10;Subject: Example&#10;Received: from ...&#10;Authentication-Results: ..."></textarea>
+    <div class="toolbar" style="margin-top:10px"><button type="button" class="btn" id="analyzePastedHeaders">Analyze pasted headers</button><button type="button" class="btn small" id="clearPastedHeaders">Clear</button></div>
+    <div class="note">Header-only analysis supports header inspection, sending IP extraction, IOC lookup, DNS SPF checks and DMARC policy discovery. DKIM cryptographic verification needs the original message body and is not possible with headers alone. Authentication-Results supplied in the headers are displayed separately as reported by the receiving server.</div>
   </div>
   <div id="status" class="status"></div>
 
@@ -211,6 +218,7 @@ function rfc822Parse(message){
 function stripTrailingWhitespace(c){ return c.replace(/[\t ]+\r\n/g, '\r\n'); }
 function compressWhitespace(c){ return c.replace(/[\t ]+/g, ' '); }
 function stripTrailingLines(content){
+  return content.replace(/(?:\r\n)*$/, '') + '\r\n';
   let end = null;
   const endsWithCRLF = (s, upto) => (upto===null? s : s.slice(0, upto<0? s.length+upto : upto)).endsWith('\r\n');
   while (endsWithCRLF(content, end)){ end = (end===null)? -2 : end-2; }
@@ -219,7 +227,7 @@ function stripTrailingLines(content){
   if (end === 0) return content;
   return content.slice(0, end<0? content.length+end : end);
 }
-function unfoldHeaderValue(c){ return c.replace(/\r?\n/g, ''); }
+function unfoldHeaderValue(c){ return c.replace(/\r\n(?=[ \t])/g, '').replace(/\r\n$/, ''); }
 function correctEmptyBody(c){ return c === '\r\n' ? '' : c; }
 const Simple = {
   canonicalizeHeaders(h){ return h.map(([n,v])=>[n,v]); },
@@ -241,12 +249,13 @@ function selectHeaders(headers, includeHeaders){
 }
 function stripBTag(sigValue){ return sigValue.replace(/([;\s]b\s*=)(?:[^;]*)/, (full,p1)=>p1); }
 function hashHeadersText(canonPolicy, headers, includeHeaders, sigHeaderNameValue){
-  const signHeaders = selectHeaders(headers, includeHeaders);
+  // The signed headers must be canonicalized BEFORE building the hash input.
+  const selected = canonPolicy.canonicalizeHeaders(selectHeaders(headers, includeHeaders));
   const stripped = stripBTag(sigHeaderNameValue[1]);
-  const cheaders = canonPolicy.canonicalizeHeaders([[sigHeaderNameValue[0], stripped]]);
-  let out = '';
-  for (const [n,v] of signHeaders) out += n + ':' + v;
-  for (const [n,v] of cheaders) out += n + ':' + v.replace(/\s+$/,'');
+  const sig = canonPolicy.canonicalizeHeaders([[sigHeaderNameValue[0], stripped]]);
+  let out = selected.map(([n,v])=>n+':'+v).join('');
+  // RFC 6376: omit only the final CRLF of the DKIM-Signature header.
+  out += sig[0][0] + ':' + sig[0][1].replace(/\r\n$/, '');
   return out;
 }
 function parseTagList(value){
@@ -263,7 +272,7 @@ function unfoldForDisplay(v){ return v.replace(/\r\n[ \t]+/g,' ').replace(/\r?\n
    SECTION 3 — DNS-over-HTTPS (free, no API key) with fallback resolver
    ========================================================================= */
 async function dohQuery(name, type){
-  const typeNum = {A:1, AAAA:28, TXT:16}[type] ?? type;
+  const typeNum = {A:1, AAAA:28, TXT:16, MX:15}[type] ?? type;
   try{
     const r = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${typeNum}`, {mode:'cors'});
     if (!r.ok) throw new Error('google doh http '+r.status);
@@ -324,7 +333,13 @@ function expandIPv6(ip){
   while (all.length < 8) all.push('0');
   return all.map(h=>parseInt(h||'0',16));
 }
-function isIPv6(s){ return s.includes(':'); }
+function isIPv6(s){
+  // A timestamp such as 23:32:11 is not an IPv6 address.
+  // The URL parser validates IPv6 syntax, including compressed forms.
+  if (typeof s !== 'string' || !s.includes(':')) return false;
+  try { new URL('http://[' + s + ']/'); return true; }
+  catch(e){ return false; }
+}
 function ipv6ToBigInt(ip){
   const parts = expandIPv6(ip);
   let val = 0n;
@@ -420,8 +435,16 @@ function extractUrlsAndIps(text, html){
   const addFromText = (t)=>{
     if (!t) return;
     (t.match(URL_RE)||[]).forEach(u=>urls.add(u.replace(/[.,;:!?]+$/,'')));
-    (t.match(IPV4_RE)||[]).forEach(ip=>ips.add(ip));
-    (t.match(IPV6_RE)||[]).forEach(ip=>{ if(ip.includes(':') && ip.split(':').length>2) ips.add(ip); });
+    for (const match of t.matchAll(IPV4_RE)){
+      const ip = match[0], start = match.index;
+      const before = t.slice(Math.max(0,start-2), start);
+      const after = t.slice(start + ip.length, start + ip.length + 2);
+      // Ignore numeric software versions such as Thunderbird/2.0.0.16
+      // or a component of a longer dotted version sequence.
+      if (before.endsWith('/') || before.endsWith('.') || after.startsWith('.')) continue;
+      if (isIPv4(ip)) ips.add(ip);
+    }
+    (t.match(IPV6_RE)||[]).forEach(ip=>{ if (isIPv6(ip)) ips.add(ip); });
   };
   addFromText(text);
   addFromText(html);
@@ -468,11 +491,12 @@ function extractDomains(text, html, urls){
    SECTION 7 — SPF evaluation (RFC 7208, simplified: no ptr/exists macros)
    ========================================================================= */
 async function spfCheck(domain, ip, depth=0, lookups={n:0}){
-  if (depth > 10 || lookups.n > 10) return {result:'permerror', reason:'too many DNS lookups (RFC 7208 limit)'};
+  if (depth > 10 || lookups.n >= 10) return {result:'permerror', reason:'too many DNS lookups (RFC 7208 limit)'};
   lookups.n++;
   let txt;
   try{ txt = await getTxtRecords(domain); } catch(e){ return {result:'temperror', reason:'DNS lookup failed: '+e.message}; }
   if (txt.status==='NXDOMAIN') return {result:'none', reason:'domain does not exist'};
+  if (txt.status!=='OK') return {result:'temperror', reason:'DNS status: '+txt.status};
   const spfRecords = txt.records.filter(r=>/^v=spf1(\s|$)/i.test(r));
   if (spfRecords.length===0) return {result:'none', reason:'no SPF record published for '+domain};
   if (spfRecords.length>1) return {result:'permerror', reason:'multiple SPF records published (invalid)'};
@@ -483,7 +507,8 @@ async function spfCheck(domain, ip, depth=0, lookups={n:0}){
     let qualifier = '+', t = token;
     if ('+-~?'.includes(t[0])){ qualifier = t[0]; t = t.slice(1); }
     const [mech, argRaw] = t.includes(':') ? [t.split(':')[0], t.split(':').slice(1).join(':')] : (t.includes('=') ? [t.split('=')[0], t.split('=').slice(1).join('=')] : [t, undefined]);
-    const mechLower = mech.toLowerCase();
+    const mechLower = mech.toLowerCase().replace(/\/\d{1,3}(?:\/\d{1,3})?$/, '');
+    if (mechLower === 'redirect' || mechLower === 'exp') continue;
     let hit = false, note='';
     try{
       if (mechLower==='all'){ hit = true; note='catch-all'; }
@@ -492,16 +517,16 @@ async function spfCheck(domain, ip, depth=0, lookups={n:0}){
       else if (mechLower==='include' && argRaw){
         const sub = await spfCheck(argRaw, ip, depth+1, lookups);
         hit = sub.result === 'pass'; note = 'include:'+argRaw+' -> '+sub.result;
-        if (sub.result==='permerror'||sub.result==='temperror'){ evaluated.push({token, note}); continue; }
+        if (sub.result==='permerror'||sub.result==='temperror'){ return {result:sub.result, reason:note, record, evaluated}; }
       }
       else if (mechLower==='a'){
-        const d = argRaw || domain;
+        const d = (argRaw || domain).replace(/\/\d{1,3}(?:\/\d{1,3})?$/, '');
         const addrs = isIPv6(ip) ? await getAddresses(d,'AAAA') : await getAddresses(d,'A');
         lookups.n++;
         hit = addrs.some(a=> isIPv6(ip) ? cidrMatchV6(ip, a) : cidrMatchV4(ip, a));
       }
       else if (mechLower==='mx'){
-        const d = argRaw || domain;
+        const d = (argRaw || domain).replace(/\/\d{1,3}(?:\/\d{1,3})?$/, '');
         const mxJson = await dohQuery(d,'MX'); lookups.n++;
         const hosts = (mxJson.Answer||[]).filter(a=>a.type===15).map(a=>a.data.split(' ').pop().replace(/\.$/,''));
         for (const h of hosts){
@@ -509,10 +534,9 @@ async function spfCheck(domain, ip, depth=0, lookups={n:0}){
           if (addrs.some(a=> isIPv6(ip)? cidrMatchV6(ip,a) : cidrMatchV4(ip,a))){ hit = true; break; }
         }
       }
-      else if (mechLower==='ptr'){ note='ptr mechanism present but not evaluated (deprecated, expensive)'; }
-      else if (mechLower==='exists'){ note='exists mechanism not evaluated (macro expansion unsupported)'; }
-      else if (mechLower==='redirect'){ /* handled after loop */ }
-    }catch(e){ note = 'lookup error: '+e.message; }
+      else if (mechLower==='ptr' || mechLower==='exists'){ return {result:'neutral', reason:'Incomplete SPF evaluation: unsupported '+mechLower+' mechanism', record, evaluated}; }
+      else { return {result:'permerror', reason:'Unknown SPF mechanism: '+token, record, evaluated}; }
+    }catch(e){ return {result:'temperror', reason:'DNS lookup error: '+e.message, record, evaluated}; }
     evaluated.push({token, note});
     if (hit){
       const map = {'+':'pass','-':'fail','~':'softfail','?':'neutral'};
@@ -563,14 +587,18 @@ async function dkimVerifyOne(headers, rawBinaryString, sigHeaderEntry, isMsg){
   const canonicalBody = bodyCanon.canonicalizeBody(body);
   let computedBH;
   try{
-    const digest = await crypto.subtle.digest(hashAlgo, binaryStringToBytes(canonicalBody));
-    computedBH = btoa(String.fromCharCode(...new Uint8Array(digest)));
+    const limit = tags.l !== undefined ? Number(tags.l) : null;
+    if (limit !== null && (!Number.isSafeInteger(limit) || limit < 0)) throw new Error('invalid DKIM l= body length');
+    const bodyBytes = binaryStringToBytes(canonicalBody);
+    const digest = await crypto.subtle.digest(hashAlgo, limit === null ? bodyBytes : bodyBytes.slice(0, limit));
+    computedBH = bytesToBinaryString(new Uint8Array(digest));
+    computedBH = btoa(computedBH);
   }catch(e){ out.result='error'; out.detail='hashing failed: '+e.message; return out; }
   const expectedBH = (tags.bh||'').replace(/\s+/g,'');
   const bodyHashMatch = computedBH === expectedBH;
 
   // 3. header hash + signature
-  const canonHeaders = headerCanon.canonicalizeHeaders(parsedHeaders);
+  const canonHeaders = parsedHeaders;
   const includeHeaders = tags.h.split(':').map(s=>s.trim().toLowerCase());
   const signedText = hashHeadersText(headerCanon, canonHeaders, includeHeaders, sigHeaderEntry);
   const signedBytes = binaryStringToBytes(signedText);
@@ -615,7 +643,9 @@ async function dmarcCheck(fromDomain){
     tried.push(d);
     let txt;
     try{ txt = await getTxtRecords('_dmarc.'+d); } catch(e){ return {result:'temperror', detail:'DNS error: '+e.message, tried}; }
-    const recs = txt.records.filter(r=>/^v=DMARC1/i.test(r));
+    if (txt.status !== 'OK' && txt.status !== 'NXDOMAIN') return {found:false, result:'temperror', detail:'DMARC DNS response: '+txt.status, tried};
+    const recs = txt.records.filter(r=>/^v=DMARC1(?:;|\s|$)/i.test(r));
+    if (recs.length > 1) return {found:false, result:'permerror', detail:'Multiple DMARC records at '+d, tried};
     if (recs.length){
       const tags = parseTagList(recs[0]);
       return {found:true, atDomain:d, tags, record:recs[0], tried};
@@ -825,12 +855,17 @@ async function renderWhois(ctx){
    actually click a link.
    ========================================================================= */
 function detectIocType(value){
+  if (/^https?:\/\//i.test(value)) return 'url';
   if (/^[a-f0-9]{32}$|^[a-f0-9]{40}$|^[a-f0-9]{64}$/i.test(value)) return 'hash';
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(value) || (value.includes(':') && !value.includes('.'))) return 'ip';
   return 'domain';
 }
 function iocLinks(type, value){
   const v = encodeURIComponent(value);
+  if (type==='url') return [
+    ['VirusTotal', 'https://www.virustotal.com/gui/search/'+v],
+    ['urlscan.io search', 'https://urlscan.io/search/#'+v]
+  ];
   if (type==='ip') return [
     ['AbuseIPDB', 'https://www.abuseipdb.com/check/'+v],
     ['VirusTotal', 'https://www.virustotal.com/gui/ip-address/'+v],
@@ -843,6 +878,7 @@ function iocLinks(type, value){
   ];
   return [ ['VirusTotal', 'https://www.virustotal.com/gui/file/'+v] ]; // hash
 }
+let extractedIocs = {urls:[], domains:[], ips:[], hashes:[]};
 function renderIocLookup(){
   const panel = document.querySelector('#panel-ioc');
   if (!panel) return;
@@ -852,16 +888,36 @@ function renderIocLookup(){
       <div class="toolbar">
         <select id="iocType" class="input">
           <option value="auto">Auto-detect</option>
+          <option value="url">URL</option>
           <option value="ip">Public IP</option>
           <option value="domain">Domain</option>
           <option value="hash">File hash</option>
         </select>
+        <select id="iocExtracted" class="input" style="flex:1;min-width:220px;max-width:100%" aria-label="Select extracted indicator"><option value="">Select an extracted indicator…</option></select>
         <input type="text" id="iocValue" class="input" style="flex:1;min-width:240px" placeholder="e.g. 203.0.113.7, example.com, or a file hash">
         <button class="btn small" id="iocCheckBtn">Get links</button>
       </div>
       <div id="iocResult"></div>
       <div class="note">Opens each service's own report page for the indicator in a new tab &mdash; no API key, no proxy, nothing sent anywhere until you click. AbuseIPDB reputation is IP-only; VirusTotal covers IPs, domains and file hashes.</div>
     </div>`;
+  const indicatorSelect = document.querySelector('#iocExtracted');
+  const groups = [['URLs','url',extractedIocs.urls],['Domains','domain',extractedIocs.domains],['IP addresses','ip',extractedIocs.ips],['Attachment SHA-256','hash',extractedIocs.hashes]];
+  for (const [title,type,items] of groups){
+    if (!items.length) continue;
+    const group = document.createElement('optgroup'); group.label = title;
+    for (const value of [...new Set(items)]){
+      const option = document.createElement('option'); option.value = value;
+      option.dataset.type = type; option.textContent = value; group.appendChild(option);
+    }
+    indicatorSelect.appendChild(group);
+  }
+  indicatorSelect.addEventListener('change', ()=>{
+    const option = indicatorSelect.selectedOptions[0];
+    if (!option || !option.value) return;
+    document.querySelector('#iocValue').value = option.value;
+    document.querySelector('#iocType').value = option.dataset.type || 'auto';
+    document.querySelector('#iocCheckBtn').click();
+  });
   const run = ()=>{
     const raw = document.querySelector('#iocValue').value.trim();
     const sel = document.querySelector('#iocType').value;
@@ -928,6 +984,7 @@ window.jumpToIocCheck = function(type, value){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelector('.tab[data-tab="ioc"]').classList.add('active');
   $('#panel-ioc').classList.add('active');
+  $('#iocExtracted').value = [...$('#iocExtracted').options].some(o=>o.value===value) ? value : '';
   $('#iocType').value = type;
   $('#iocValue').value = value;
   $('#iocCheckBtn').click();
@@ -941,6 +998,36 @@ dropEl.addEventListener('drop', e=>{
   if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
 });
 fileInput.addEventListener('change', e=>{ if (e.target.files[0]) handleFile(e.target.files[0]); });
+$('#clearPastedHeaders').addEventListener('click', ()=>{ $('#pastedHeaders').value=''; });
+$('#analyzePastedHeaders').addEventListener('click', async ()=>{
+  const pasted = $('#pastedHeaders').value.trim();
+  if (!pasted){ setStatus('Paste some email headers first.', true); return; }
+  const normalized = pasted.replace(/\r\n|\r|\n/g, '\r\n');
+  const headerPart = normalized.split('\r\n\r\n')[0];
+  const rawBinary = headerPart + '\r\n\r\n';
+  const {headers} = rfc822Parse(rawBinary);
+  if (!headers.length || !headers.some(([name])=>/^from$/i.test(name))){
+    setStatus('Please paste valid raw headers, including a From: header.',true); return;
+  }
+  appEl.style.display='none';
+  $('#exportHtmlBtn').disabled = true;
+  $('#exportPdfBtn').disabled = true;
+  try{
+    const fromHeader = headers.find(([name])=>name.toLowerCase()==='from');
+    const fromAddress = fromHeader ? (/<([^<>]+@[^<>]+)>/.exec(unfoldForDisplay(fromHeader[1]))?.[1] || /[\w.!#$%&'*+\/=?^`{|}~-]+@[\w.-]+/.exec(unfoldForDisplay(fromHeader[1]))?.[0] || null) : null;
+    // Feed the header values into indicator extraction, without claiming that they are body content.
+    const headerText = headers
+      // Mail client versions are metadata, not network indicators.
+      .filter(([name])=> !/^(user-agent|x-mailer|x-mimeole|mime-version)$/i.test(name))
+      .map(([name,value])=>name+': '+unfoldForDisplay(value)).join('\n');
+    await renderAll({headers,rawBinary,isMsg:false,headerOnly:true,text:headerText,html:'',attachments:[],fromAddress});
+    appEl.style.display='block';
+    currentFileName='pasted-headers';
+    $('#exportHtmlBtn').disabled = false;
+    $('#exportPdfBtn').disabled = false;
+    setStatus('Analyzed '+headers.length+' pasted headers (header-only mode).');
+  }catch(e){console.error(e);setStatus('Could not analyze headers: '+e.message,true);}
+});
 
 document.querySelectorAll('.tab').forEach(tab=>{
   tab.addEventListener('click', ()=>{
@@ -1039,8 +1126,10 @@ function checkHeaderAnomalies(headers, fromAddr){
 }
 async function renderAll(ctx){
   resetRiskSignals();
+  extractedIocs = {urls:[],domains:[],ips:[],hashes:[]};
   renderHeaders(ctx);
   renderBody(ctx);
+  if (ctx.headerOnly) { $('#panel-body').innerHTML = '<div class="card"><div class="note">Only email headers were pasted; no original message body is available. See the Headers tab for the pasted data.</div></div>'; }
   renderUrls(ctx);
   await renderAttachments(ctx);
   checkHeaderAnomalies(ctx.headers, ctx.fromAddress);
@@ -1172,6 +1261,8 @@ function renderUrls(ctx){
   const panel = $('#panel-urls');
   const { urls, ips } = extractUrlsAndIps(ctx.text, ctx.html);
   const domains = extractDomains(ctx.text, ctx.html, urls);
+  extractedIocs.urls = urls; extractedIocs.domains = domains; extractedIocs.ips = ips;
+  renderIocLookup();
   panel.innerHTML = `
     <div class="card">
       <div class="toolbar"><h3 style="margin:0">URLs found (${urls.length})</h3><button class="btn small" id="defangBtn">Toggle defang</button></div>
@@ -1204,6 +1295,7 @@ async function renderAttachments(ctx){
   const items = await Promise.all(ctx.attachments.map(async (a)=>{
     const check = checkExtensionMatch(a.filename, a.bytes);
     const hash = await sha256Hex(a.bytes);
+    extractedIocs.hashes.push(hash);
     const mime = a.mimeType || guessMimeFromExt(check.ext);
     const url = URL.createObjectURL(new Blob([a.bytes], {type: mime}));
     const badge = check.mismatch
@@ -1229,6 +1321,7 @@ async function renderAttachments(ctx){
     </div>`;
   }));
   $('#attachList').innerHTML = items.join('');
+  renderIocLookup();
 }
 
 function badgeFor(result){
@@ -1243,11 +1336,12 @@ async function renderAuth(ctx){
 
   if (ctx.isMsg && ctx.reconstructed){
     panel.innerHTML = '<div class="card"><div class="badbanner">No transport headers available for this .msg file — SPF/DKIM/DMARC cannot be checked.</div></div>';
-    return;
+    checkDone(); checkDone(); return;
   }
 
   panel.innerHTML = `
     <div class="card">
+      ${ctx.headerOnly ? '<div class="warnbanner">Header-only input: SPF uses a best-effort sending-IP inference from Received headers, and current DNS records. DKIM cannot be cryptographically verified without the original MIME body; DMARC pass/fail cannot be independently determined from the pasted headers alone. Authentication-Results, when present, are shown below as claimed by the receiving server.</div>' : ''}
       ${ctx.isMsg ? '<div class="warnbanner">This message came from a .msg file. DKIM body-hash verification is best-effort: Outlook stores a decoded copy of the body, not the exact original wire MIME bytes, so a live DKIM check may show FAIL even for a genuinely legitimate email. Treat DKIM results for .msg files as indicative, not authoritative — the header-based Authentication-Results (if present, reflecting what the receiving server determined at delivery time) is more reliable.</div>' : ''}
       <div class="grid" id="liveResults">
         <div class="authbox">
@@ -1289,8 +1383,9 @@ async function renderAuth(ctx){
 
   const fromDomain = extractDomain(ctx.fromAddress) || getReturnPathOrFromDomain(ctx.headers, ctx.fromAddress)?.domain;
 
+  let spfResFinal = null, dkimResFinal = [];
   // ---- SPF ----
-  (async ()=>{
+  const spfPromise = (async ()=>{
     const box = $('#spfBox');
     try{
       const rp = getReturnPathOrFromDomain(ctx.headers, ctx.fromAddress);
@@ -1298,54 +1393,64 @@ async function renderAuth(ctx){
       if (!rp){ box.innerHTML = badgeFor('none') + '<div class="note">Could not determine sender domain (no Return-Path or From address)</div>'; checkDone(); return; }
       if (!sender){ box.innerHTML = badgeFor('none') + '<div class="note">Could not find a public sending IP in Received headers</div>'; checkDone(); return; }
       const res = await spfCheck(rp.domain, sender.ip);
-      window.__lastSpf = res;
+      spfResFinal = res;
       if (['fail','permerror','temperror'].includes(res.result)) addRiskSignal('high', 'SPF '+res.result.toUpperCase(), rp.domain+': '+(res.reason||''), 'spf');
       else if (res.result==='softfail') addRiskSignal('medium', 'SPF SOFTFAIL', rp.domain+': '+(res.reason||''), 'spf');
       box.innerHTML = badgeFor(res.result) +
         `<div class="note">Domain checked: <b>${esc(rp.domain)}</b> (${esc(rp.source)})<br>Candidate sending IP: <b>${esc(sender.ip)}</b>${sender.fromHost? ' (host: '+esc(sender.fromHost)+')':''} — from the first "Received: from" hop with a bracketed public IP<br>${esc(res.reason||'')}</div>` +
         (res.record ? `<div class="note mono">${esc(res.record)}</div>` : '');
-      renderDmarc(fromDomain, res, window.__lastDkim);
+
     }catch(e){ box.innerHTML = badgeFor('error') + '<div class="note">'+esc(e.message)+'</div>'; }
     checkDone();
   })();
 
   // ---- DKIM ----
-  (async ()=>{
+  const dkimPromise = (async ()=>{
     const box = $('#dkimBox');
+    if (ctx.headerOnly){
+      box.innerHTML = badgeFor('none') + '<div class="note">Not verifiable from headers alone: the original wire-format message body is required for DKIM body-hash and signature validation. See recorded Authentication-Results below, if available.</div>';
+      dkimResFinal=[]; checkDone(); return;
+    }
     const sigHeaders = ctx.headers.filter(([n])=>n.toLowerCase()==='dkim-signature');
-    if (!sigHeaders.length){ box.innerHTML = badgeFor('none') + '<div class="note">No DKIM-Signature header present</div>'; window.__lastDkim=[]; checkDone(); return; }
+    if (!sigHeaders.length){ box.innerHTML = badgeFor('none') + '<div class="note">No DKIM-Signature header present</div>'; dkimResFinal=[]; checkDone(); return; }
     try{
       const results = [];
       for (const sh of sigHeaders){ results.push(await dkimVerifyOne(ctx.headers, ctx.rawBinary, sh, ctx.isMsg)); }
-      window.__lastDkim = results;
+      dkimResFinal = results;
       if (results.every(r=>r.result==='fail'||r.result==='permerror'||r.result==='error')) addRiskSignal('high', 'DKIM verification failed', results.map(r=>r.domain+': '+r.detail).join('; '), 'dkim');
       box.innerHTML = results.map(r=>
         badgeFor(r.result) + `<div class="note">d=<b>${esc(r.domain)}</b> s=${esc(r.selector)} a=${esc(r.algorithm)} c=${esc(r.canon)}<br>${esc(r.detail)}</div>`
       ).join('<hr style="border-color:var(--border);opacity:.3">');
-      renderDmarc(fromDomain, window.__lastSpf, results);
+
     }catch(e){ box.innerHTML = badgeFor('error') + '<div class="note">'+esc(e.message)+'</div>'; }
     checkDone();
   })();
 
-  // ---- DMARC ----
+  // ---- DMARC: only evaluate after both independent checks finish.
+  Promise.allSettled([spfPromise, dkimPromise]).then(()=>renderDmarc(fromDomain, spfResFinal, dkimResFinal));
   async function renderDmarc(domain, spfRes, dkimResList){
     const box = $('#dmarcBox');
     if (!domain){ box.innerHTML = badgeFor('none') + '<div class="note">No From domain to check</div>'; return; }
     try{
       const d = await dmarcCheck(domain);
+      if (d.result === 'temperror' || d.result === 'permerror'){ box.innerHTML = badgeFor(d.result) + '<div class="note">'+esc(d.detail)+'</div>'; return; }
       if (!d.found){ box.innerHTML = badgeFor('none') + `<div class="note">No DMARC record published for ${esc(domain)} (checked: ${d.tried.map(esc).join(', ')})</div>`; return; }
       const p = d.tags.p || 'none', aspf = d.tags.aspf||'r', adkim = d.tags.adkim||'r';
+      if (ctx.headerOnly){
+        box.innerHTML = badgeFor('none') + `<div class="note">Published DMARC policy found at <b>${esc(d.atDomain)}</b> for ${esc(domain)}: p=<b>${esc(p)}</b>, aspf=${esc(aspf)}, adkim=${esc(adkim)}.<br>DMARC message authentication is not independently verifiable from headers alone. Consult the recorded Authentication-Results below, if present.</div><div class="note mono">${esc(d.record)}</div>`;
+        return;
+      }
       const rp = getReturnPathOrFromDomain(ctx.headers, ctx.fromAddress);
-      const spfAligned = spfRes ? domainsAligned(rp?.domain, domain, aspf) : false;
+      const spfAligned = !!(spfRes && spfRes.result === 'pass' && domainsAligned(rp?.domain, domain, aspf));
       const spfPass = spfRes && spfRes.result === 'pass' && spfAligned;
       const dkimPass = Array.isArray(dkimResList) && dkimResList.some(r=>r.result==='pass' && domainsAligned(r.domain, domain, adkim));
-      const overall = (spfPass || dkimPass) ? 'pass' : 'fail';
+      const overall = (spfPass || dkimPass) ? 'pass' : (!spfRes && !dkimResList.length ? 'unknown' : 'fail');
       if (overall==='fail') addRiskSignal(p==='reject'||p==='quarantine'?'high':'medium', 'DMARC FAIL', domain+': policy p='+p+', SPF aligned='+spfAligned+', DKIM aligned='+dkimPass, 'dmarc');
       else clearRiskSignal('dmarc'); // passes cleanly: make sure no stale fail from the first (SPF-only or DKIM-only) partial evaluation lingers
       box.innerHTML = badgeFor(overall) +
         `<div class="note">Domain: <b>${esc(domain)}</b> (found at ${esc(d.atDomain)})<br>Policy p=<b>${esc(p)}</b>, aspf=${esc(aspf)}, adkim=${esc(adkim)}${d.tags.pct? ', pct='+esc(d.tags.pct):''}<br>` +
-        `SPF aligned: ${spfAligned?'yes':'no'} &middot; DKIM aligned: ${dkimPass?'yes':'no'}<br>` +
-        (overall==='fail' ? `If this were enforced today, policy <b>${esc(p)}</b> would apply.` : 'Message would pass DMARC.') + `</div>` +
+        `SPF PASS + aligned: ${spfPass?'yes':'no'} &middot; DKIM PASS + aligned: ${dkimPass?'yes':'no'}<br>` +
+        (overall==='fail' ? `DMARC authentication failed; published policy: <b>${esc(p)}</b>. This is not a delivery disposition.` : overall==='pass' ? 'Message passes DMARC based on the available evidence.' : 'Insufficient message evidence to evaluate DMARC.') + `</div>` +
         `<div class="note mono">${esc(d.record)}</div>`;
     }catch(e){ box.innerHTML = badgeFor('error') + '<div class="note">'+esc(e.message)+'</div>'; }
   }
